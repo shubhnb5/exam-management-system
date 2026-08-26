@@ -4,44 +4,33 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import ListFlowable, ListItem, Paragraph, SimpleDocTemplate, Spacer
 
-from app.services.fonts import BODY, BODY_BOLD, ensure_fonts_registered
+from app.services.devanagari_shaping import ShapedParagraphFlowable, contains_devanagari
+from app.services.fonts import BODY, BODY_BOLD, FONT_PATHS, ensure_fonts_registered
 
 MARGIN = 36
 
 RULE_ITEMS = [
-    "<b>प्रवेश अनिवार्य:</b> परीक्षा केंद्रात प्रवेशासाठी हॉल तिकीटची छापील प्रत (Printed Hard Copy) सोबत असणे "
-    "बंधनकारक आहे. प्रवेशपत्रावरील माहितीच्या आधारेच पडताळणी (Verification) केली जाईल.",
-    "<b>सामायिक प्रवेशपत्र:</b> संपूर्ण सराव परीक्षा मालिकेसाठी (Test Series) हे एकच प्रवेशपत्र लागू असेल. "
-    "प्रत्येक पेपरच्या वेळी विद्यार्थ्याने हेच प्रवेशपत्र सोबत आणावे.",
-    "<b>प्रिंट गुणवत्ता:</b> प्रवेशपत्रावरील QR कोड स्कॅनिंगसाठी सुस्पष्ट असावा, यासाठी प्रिंटची गुणवत्ता "
-    "(Good Quality) चांगली असावी.",
-    "<b>रोल नंबर:</b> OMR शीटवर प्रवेशपत्रात नमूद केलेला ७ अंकी रोल नंबर (Roll No.) अचूक भरावा.",
-    "<b>उपस्थिती:</b> परीक्षा सुरू होण्यापूर्वी किमान ३० मिनिटे अगोदर परीक्षा केंद्रावर हजर राहावे.",
-    "<b>वेळापत्रक व अधिकार:</b> परीक्षेचे वेळापत्रक खालील तक्त्यात दिले आहे. अपरिहार्य कारणास्तव परीक्षा केंद्र "
-    "किंवा वेळेत बदल करण्याचा अधिकार संस्थेने राखून ठेवला आहे.",
-    "__UPDATES__",
-    "सर्व यंत्रणा ऑनलाईन पद्धतीने असल्यामुळे विद्यार्थ्यांना केवळ त्यांच्या नियोजित वेळेत आणि नियोजित परीक्षा "
-    "केंद्रावरच परीक्षा देता येईल.",
-    "कुठल्याही परिस्थितीत उमेदवाराच्या परीक्षा केंद्रात आणि वेळेत तांत्रिक अडचणीच्या पार्श्वभूमीवर बदल करता येत नाही.",
+    "प्रत्येक विद्यार्थ्याने हॉल तिकीट ची छापील प्रत स्वतःबरोबर आणणे बंधनकारक आहे.",
+    "छापील हॉल तिकीट शिवाय कोणालाही प्रवेश दिला जाणार नाही.",
+    "परीक्षा केंद्रावर दिलेल्या वेळेच्या अर्धा तास अगोदर उपस्थित राहणे अनिवार्य आहे.",
+    "परीक्षेसंबंधी काही शंका असल्यास अगोदरच ऑफिसशी संपर्क साधणे आवश्यक आहे.",
+    "टेस्ट सिरीज च्या वेळापत्रकात बदल केल्यास तशी पूर्वसूचना विद्यार्थ्यांना देण्यात येईल.",
+    "सर्व अधिकार Combine Mentor Official कडे राखीव असतील.",
 ]
 
-PROHIBITED_TEXT = (
-    "उमेदवारांनी परीक्षा कक्षेत प्रवेश केल्यावर आपले इलेक्ट्रॉनिक उपकरणे उदा. मोबाईल आणि हेडफोन्स बंद करून "
-    "ठेवावेत. उमेदवारांना केवळ काळ्या शाईचे बॉल पेन आणि पाण्याची बॉटल परीक्षा कक्षात घेऊन जाण्याची परवानगी "
-    "देण्यात आली आहे."
-)
 
-
-def _updates_text(config) -> str:
-    if config.telegram_handle and config.website:
-        return (
-            f"<b>महत्त्वाचे अपडेट्स:</b> परीक्षेच्या माहितीसाठी व मदतीसाठी Telegram वर {config.telegram_handle} "
-            f"सर्च करून चॅनल जॉईन करावे, तसेच {config.website} या संकेतस्थळाला नियमित भेट द्यावी."
-        )
-    return (
-        "<b>महत्त्वाचे अपडेट्स:</b> परीक्षेच्या माहितीसाठी व मदतीसाठी आमच्या अधिकृत संकेतस्थळाला व सोशल "
-        "मीडिया चॅनलला नियमित भेट द्यावी."
-    )
+def _flowable(text: str, font_name: str, font_size: float, leading: float | None = None):
+    """Paragraph, or a HarfBuzz-shaped+word-wrapped equivalent when the text
+    contains Devanagari — reportlab's own Paragraph can't shape Indic
+    conjuncts (see devanagari_shaping.py), so plain Paragraph is only safe for
+    non-Devanagari text."""
+    text = str(text)
+    if contains_devanagari(text):
+        return ShapedParagraphFlowable(text, FONT_PATHS[font_name], font_size, leading=leading)
+    style_kwargs = {"fontName": font_name, "fontSize": font_size}
+    if leading is not None:
+        style_kwargs["leading"] = leading
+    return Paragraph(text, ParagraphStyle(f"flow-{font_name}-{font_size}", **style_kwargs))
 
 
 def build_rules_page_pdf(config) -> BytesIO:
@@ -56,22 +45,11 @@ def build_rules_page_pdf(config) -> BytesIO:
         bottomMargin=MARGIN,
     )
 
-    h1 = ParagraphStyle("h1", fontName=BODY_BOLD, fontSize=16, spaceAfter=10)
-    h2 = ParagraphStyle("h2", fontName=BODY_BOLD, fontSize=11, spaceAfter=4)
-    body = ParagraphStyle("body", fontName=BODY, fontSize=9.5, leading=14, spaceAfter=6)
-    item_style = ParagraphStyle("item", fontName=BODY, fontSize=9.5, leading=14)
-    small_bold = ParagraphStyle("small_bold", fontName=BODY_BOLD, fontSize=9.5, spaceAfter=8)
-
     story = [
-        Paragraph("RULES &amp; REGULATIONS", h1),
-        Paragraph("परीक्षार्थ्यांसाठी महत्त्वाच्या सूचना (Important Instructions)", h2),
-        Paragraph("सर्वसाधारण सूचना:", small_bold),
+        Paragraph("RULES &amp; REGULATIONS", ParagraphStyle("h1", fontName=BODY_BOLD, fontSize=16, spaceAfter=10)),
     ]
 
-    numbered = []
-    for raw in RULE_ITEMS:
-        text = _updates_text(config) if raw == "__UPDATES__" else raw
-        numbered.append(ListItem(Paragraph(text, item_style), spaceAfter=8))
+    numbered = [ListItem(_flowable(text, BODY, 9.5, leading=14), spaceAfter=8) for text in RULE_ITEMS]
 
     story.append(
         ListFlowable(
@@ -82,14 +60,10 @@ def build_rules_page_pdf(config) -> BytesIO:
         )
     )
 
-    story.append(Spacer(1, 10))
-    story.append(Paragraph("Prohibited Items:", small_bold))
-    story.append(Paragraph(PROHIBITED_TEXT, body))
-
     story.append(Spacer(1, 16))
-    story.append(Paragraph("Best wishes for your examination!", body))
-    story.append(Paragraph(config.org_name, ParagraphStyle("orgname", fontName=BODY_BOLD, fontSize=10)))
-    story.append(Paragraph("Test Series Department", ParagraphStyle("dept", fontName=BODY, fontSize=9)))
+    story.append(_flowable("Best wishes for your examination!", BODY, 9.5, leading=14))
+    story.append(_flowable(config.org_name, BODY_BOLD, 10))
+    story.append(_flowable("Test Series Department", BODY, 9))
 
     doc.build(story)
     buf.seek(0)

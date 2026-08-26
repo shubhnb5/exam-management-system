@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
 import ExcelUpload from "../components/ExcelUpload";
@@ -7,12 +7,17 @@ import StudentsTable from "../components/StudentsTable";
 import StatsPanel from "../components/StatsPanel";
 import TeachersPanel from "../components/TeachersPanel";
 import AttendancePanel from "../components/AttendancePanel";
+import Sidebar from "../components/Sidebar";
+import Spinner from "../components/Spinner";
 
 export default function Dashboard() {
   const [students, setStudents] = useState([]);
   const [centers, setCenters] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [stats, setStats] = useState(null);
+  const [active, setActive] = useState("live");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const navigate = useNavigate();
 
   const refreshAll = useCallback(async () => {
@@ -29,12 +34,33 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    refreshAll();
+    refreshAll().finally(() => setInitialLoading(false));
     const interval = setInterval(() => {
       api.get("/admin/stats").then((res) => setStats(res.data));
     }, 10000);
     return () => clearInterval(interval);
   }, [refreshAll]);
+
+  const hasCenters = centers.length > 0;
+
+  const sections = useMemo(
+    () =>
+      [
+        { id: "live", label: "Live Attendance", show: true },
+        { id: "attendance", label: "Attendance", show: true },
+        { id: "upload", label: "Upload Students", show: hasCenters },
+        { id: "generate", label: "Generate & Send", show: true },
+        { id: "students", label: "Students", show: hasCenters },
+        { id: "teachers", label: "Teachers", show: hasCenters },
+      ].filter((s) => s.show),
+    [hasCenters]
+  );
+
+  useEffect(() => {
+    if (!sections.some((s) => s.id === active)) {
+      setActive(sections[0]?.id);
+    }
+  }, [sections, active]);
 
   function logout() {
     localStorage.removeItem("token");
@@ -42,21 +68,56 @@ export default function Dashboard() {
     navigate("/login");
   }
 
-  return (
-    <div className="dashboard">
-      <header className="dashboard-header">
-        <h1>Examflow Admin</h1>
-        <button className="btn-small" onClick={logout}>
-          Log out
-        </button>
-      </header>
+  const activeLabel = sections.find((s) => s.id === active)?.label || "";
 
-      <StatsPanel stats={stats} />
-      <AttendancePanel />
-      {centers.length > 0 && <ExcelUpload centers={centers} onUploaded={refreshAll} />}
-      <TicketActions onDone={refreshAll} />
-      {centers.length > 0 && <StudentsTable students={students} centers={centers} />}
-      {centers.length > 0 && <TeachersPanel teachers={teachers} centers={centers} onChanged={refreshAll} />}
+  return (
+    <div className="app-shell">
+      <Sidebar
+        sections={sections}
+        active={active}
+        onSelect={(id) => {
+          setActive(id);
+          setSidebarOpen(false);
+        }}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        onLogout={logout}
+      />
+
+      <div className="dashboard">
+        <header className="dashboard-header">
+          <div className="header-left">
+            <button
+              type="button"
+              className="btn-small btn-menu"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open menu"
+            >
+              ☰
+            </button>
+            <h1>{activeLabel || "Examflow Admin"}</h1>
+          </div>
+        </header>
+
+        <main className="dashboard-content">
+          {initialLoading ? (
+            <Spinner label="Loading dashboard..." />
+          ) : (
+            <>
+              {active === "live" && (stats ? <StatsPanel stats={stats} /> : <Spinner />)}
+              {active === "attendance" && <AttendancePanel />}
+              {active === "upload" && hasCenters && <ExcelUpload centers={centers} onUploaded={refreshAll} />}
+              {active === "generate" && <TicketActions onDone={refreshAll} />}
+              {active === "students" && hasCenters && (
+                <StudentsTable students={students} centers={centers} onChanged={refreshAll} />
+              )}
+              {active === "teachers" && hasCenters && (
+                <TeachersPanel teachers={teachers} centers={centers} onChanged={refreshAll} />
+              )}
+            </>
+          )}
+        </main>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
+import { APP_VERSION } from "../version";
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -51,6 +52,7 @@ export default function Login() {
         <button type="submit" disabled={loading}>
           {loading ? "Signing in..." : "Sign in"}
         </button>
+        <div className="login-version">{APP_VERSION}</div>
       </form>
     </div>
   );

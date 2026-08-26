@@ -32,7 +32,7 @@ button {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   padding: 24px;
   margin: 0 auto 20px;
-  max-width: 960px;
+  width: 100%;
 }
 
 .login-card {
@@ -58,6 +58,10 @@ select {
   font-size: 14px;
 }
 
+select {
+  width: 100%;
+}
+
 button {
   padding: 10px 16px;
   border: none;
@@ -69,15 +73,41 @@ button {
   cursor: pointer;
 }
 
+button:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+
 button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
 }
 
 .btn-small {
   padding: 6px 10px;
   font-size: 12px;
   background: #475569;
+}
+
+.btn-logout,
+.btn-danger {
+  background: #dc2626;
+}
+
+.btn-logout:hover:not(:disabled),
+.btn-danger:hover:not(:disabled) {
+  background: #b91c1c;
 }
 
 .error-banner {
@@ -88,23 +118,346 @@ button:disabled {
   font-size: 13px;
 }
 
-.dashboard {
-  max-width: 1000px;
-  margin: 0 auto;
+.app-shell {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: #111827;
+  color: #e2e8f0;
   padding: 24px 16px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-brand {
+  color: white;
+  font-size: 17px;
+  font-weight: 700;
+  padding: 0 8px;
+  margin-bottom: 20px;
+}
+
+.sidebar-menu {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.sidebar-footer {
+  border-top: 1px solid #1f2937;
+  padding-top: 14px;
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sidebar-logout {
+  width: 100%;
+  font-size: 13px;
+  padding: 8px 10px;
+}
+
+.sidebar-version {
+  color: #64748b;
+  font-size: 12px;
+  text-align: center;
+}
+
+.sidebar-link {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  color: #cbd5e1;
+  font-weight: 500;
+  font-size: 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+
+.sidebar-link:hover:not(:disabled) {
+  background: #1f2937;
+  filter: none;
+}
+
+.sidebar-link-active {
+  background: #2563eb;
+  color: white;
+}
+
+.sidebar-backdrop {
+  display: none;
+}
+
+.btn-menu {
+  display: none;
+  flex-shrink: 0;
+  background: #475569;
+  padding: 8px 12px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.dashboard {
+  flex: 1;
+  min-width: 0;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 24px 32px 48px;
 }
 
 .dashboard-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  max-width: 960px;
+  flex-wrap: nowrap;
+  gap: 12px;
+  width: 100%;
   margin: 0 auto 20px;
+}
+
+.dashboard-header h1 {
+  font-size: clamp(18px, 2.4vw, 28px);
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-logout {
+  flex-shrink: 0;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.card-header h2 {
+  margin: 0;
+}
+
+.card-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.card-body {
+  margin-top: 12px;
+}
+
+.search-bar {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.search-input {
+  width: 100%;
+  flex: 0 1 360px;
 }
 
 .muted {
   color: #667085;
   font-size: 13px;
+}
+
+.spinner-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 3px solid #dbeafe;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 100;
+  animation: modal-fade-in 0.15s ease;
+}
+
+@keyframes modal-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  width: 100%;
+  max-width: 420px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  padding: 24px;
+  animation: modal-pop-in 0.15s ease;
+}
+
+@keyframes modal-pop-in {
+  from {
+    transform: translateY(8px) scale(0.98);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.modal-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.modal-message {
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0 0 16px;
+}
+
+.modal-input {
+  width: 100%;
+  margin-bottom: 16px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+@media (max-width: 480px) {
+  .modal-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal-card {
+    max-width: none;
+    width: 100%;
+    border-radius: 16px 16px 0 0;
+    max-height: 85vh;
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .modal-actions button {
+    width: 100%;
+  }
+}
+
+.login-version {
+  text-align: center;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.toast-stack {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  max-width: 420px;
+  padding: 0 16px;
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  animation: toast-in 0.2s ease;
+}
+
+@keyframes toast-in {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.toast-success {
+  background: #16a34a;
+}
+
+.toast-error {
+  background: #dc2626;
 }
 
 .dropzone {
@@ -138,6 +491,15 @@ button:disabled {
   max-width: 420px;
 }
 
+.field-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #344054;
+}
+
 .stat-row {
   display: flex;
   gap: 8px;
@@ -150,6 +512,7 @@ button:disabled {
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .badge-green {
@@ -180,11 +543,53 @@ button:disabled {
 .button-row {
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
+}
+
+.row-actions {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+/* Fixed action-button width so buttons line up in neat vertical columns
+   across rows (e.g. "Revoke" vs "Reactivate" differ in label length, which
+   would otherwise shift every button after it sideways row-to-row). */
+.row-actions button,
+.row-actions .btn {
+  min-width: 118px;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .table-scroll {
   overflow-x: auto;
+  overflow-y: auto;
   margin-top: 12px;
+  border: 1px solid #eef0f2;
+  border-radius: 8px;
+}
+
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pagination-page {
+  font-size: 13px;
+  color: #344054;
+  white-space: nowrap;
 }
 
 table {
@@ -206,11 +611,15 @@ th {
   font-weight: 600;
   font-size: 12px;
   text-transform: uppercase;
+  position: sticky;
+  top: 0;
+  background: #ffffff;
+  z-index: 1;
 }
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
   margin-top: 12px;
 }
@@ -248,8 +657,120 @@ th {
 
 .inline-form {
   display: flex;
-  gap: 8px;
+  gap: 14px;
   flex-wrap: wrap;
   margin-top: 10px;
-  align-items: center;
+  align-items: flex-end;
+}
+
+/* Tablet and up: a bit more breathing room */
+@media (min-width: 768px) {
+  .dashboard {
+    padding: 28px 40px 56px;
+  }
+
+  .search-bar {
+    justify-content: flex-end;
+  }
+}
+
+/* Large desktop: let content use more of the screen without stretching too thin */
+@media (min-width: 1600px) {
+  .dashboard {
+    max-width: 1600px;
+  }
+}
+
+/* Below this width, the sidebar becomes an off-canvas drawer opened via the ☰ button */
+@media (max-width: 900px) {
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: 2px 0 16px rgba(0, 0, 0, 0.3);
+  }
+
+  .sidebar-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+    z-index: 40;
+  }
+
+  .btn-menu {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* Mobile: tighten spacing and stack controls */
+@media (max-width: 640px) {
+  .dashboard {
+    padding: 16px 12px 32px;
+  }
+
+  .card {
+    padding: 16px;
+  }
+
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .card-header-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .search-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search-input {
+    flex: none;
+    width: 100%;
+  }
+
+  .search-bar button {
+    width: 100%;
+  }
+
+  .inline-form {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .center-select-label {
+    max-width: none;
+  }
+
+  .stat-card-number {
+    font-size: 22px;
+  }
+
+  .button-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .button-row button,
+  .button-row .btn {
+    width: 100%;
+  }
+
+  table {
+    font-size: 12px;
+  }
 }

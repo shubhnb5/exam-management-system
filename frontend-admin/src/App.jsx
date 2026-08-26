@@ -1,6 +1,8 @@
 import { Navigate, Route, BrowserRouter as Router, Routes } from "react-router-dom";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import { DialogProvider } from "./components/DialogProvider";
+import { ToastProvider } from "./components/ToastProvider";
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem("token");
@@ -9,19 +11,23 @@ function ProtectedRoute({ children }) {
 
 export default function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    </Router>
+    <ToastProvider>
+      <DialogProvider>
+        <Router>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </Router>
+      </DialogProvider>
+    </ToastProvider>
   );
 }

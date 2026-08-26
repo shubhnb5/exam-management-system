@@ -11,7 +11,8 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Paragraph, Table, TableStyle
 
-from app.services.fonts import BODY, BODY_BOLD, ensure_fonts_registered
+from app.services.devanagari_shaping import ShapedTextFlowable, contains_devanagari, render_shaped_png
+from app.services.fonts import BODY, BODY_BOLD, FONT_PATHS, ensure_fonts_registered
 from app.services.qr_service import render_qr_png
 from app.services.rules_page import build_rules_page_pdf
 
@@ -44,6 +45,32 @@ class TicketConfig:
             if value and not os.path.isabs(value):
                 data[key] = os.path.join(base_dir, value)
         return cls(**data)
+
+
+def _draw_text(c: canvas.Canvas, text: str, font_name: str, font_size: float, x: float, y: float, align: str = "left"):
+    """Draws `text` at baseline (x, y), same as reportlab's own drawString
+    family — except Devanagari text is routed through HarfBuzz+FreeType
+    shaping first (see devanagari_shaping.py) since reportlab can't form
+    Indic conjuncts on its own. Non-Devanagari text is drawn exactly as
+    before, so this is a no-op behavior change for plain English tickets."""
+    text = str(text)
+    if contains_devanagari(text):
+        png_bytes, w, h, baseline = render_shaped_png(text, FONT_PATHS[font_name], font_size)
+        if align == "center":
+            draw_x = x - w / 2
+        elif align == "right":
+            draw_x = x - w
+        else:
+            draw_x = x
+        c.drawImage(ImageReader(BytesIO(png_bytes)), draw_x, y - baseline, width=w, height=h, mask="auto")
+    else:
+        c.setFont(font_name, font_size)
+        if align == "center":
+            c.drawCentredString(x, y, text)
+        elif align == "right":
+            c.drawRightString(x, y, text)
+        else:
+            c.drawString(x, y, text)
 
 
 def _draw_border(c: canvas.Canvas):
@@ -83,10 +110,15 @@ def _draw_signature_placeholder(c: canvas.Canvas, cx: float, cy: float, radius: 
     c.setStrokeColor(colors.black)
 
 
+def _cell_flowable(text: str, font_name: str, font_size: float):
+    text = str(text)
+    if contains_devanagari(text):
+        return ShapedTextFlowable(text, FONT_PATHS[font_name], font_size)
+    return Paragraph(text, ParagraphStyle(f"cell-{font_name}-{font_size}", fontName=font_name, fontSize=font_size))
+
+
 def _label_value_table(rows: list[tuple[str, str]], width: float) -> Table:
-    label_style = ParagraphStyle("label", fontName=BODY_BOLD, fontSize=9)
-    value_style = ParagraphStyle("value", fontName=BODY, fontSize=9)
-    data = [[Paragraph(label, label_style), Paragraph(value, value_style)] for label, value in rows]
+    data = [[_cell_flowable(label, BODY_BOLD, 9), _cell_flowable(value, BODY, 9)] for label, value in rows]
     t = Table(data, colWidths=[width * 0.32, width * 0.68])
     t.setStyle(
         TableStyle(
@@ -103,15 +135,19 @@ def _label_value_table(rows: list[tuple[str, str]], width: float) -> Table:
 
 
 def _timetable_table(rows: list[dict], width: float) -> Table:
-    header_style = ParagraphStyle("th", fontName=BODY_BOLD, fontSize=8.5)
-    cell_style = ParagraphStyle("td", fontName=BODY, fontSize=8.5)
-    data = [[Paragraph("SUBJECT", header_style), Paragraph("DATE", header_style), Paragraph("TIME", header_style)]]
+    data = [
+        [
+            _cell_flowable("SUBJECT", BODY_BOLD, 8.5),
+            _cell_flowable("DATE", BODY_BOLD, 8.5),
+            _cell_flowable("TIME", BODY_BOLD, 8.5),
+        ]
+    ]
     for row in rows:
         data.append(
             [
-                Paragraph(str(row.get("subject", "")), cell_style),
-                Paragraph(str(row.get("date", "")), cell_style),
-                Paragraph(str(row.get("time", "")), cell_style),
+                _cell_flowable(row.get("subject", ""), BODY, 8.5),
+                _cell_flowable(row.get("date", ""), BODY, 8.5),
+                _cell_flowable(row.get("time", ""), BODY, 8.5),
             ]
         )
     t = Table(data, colWidths=[width * 0.4, width * 0.3, width * 0.3])
@@ -158,11 +194,9 @@ def generate_hall_ticket_page(
 
     text_x = MARGIN + logo_size + 14
     text_w = qr_x - text_x - 10
-    c.setFont(BODY_BOLD, 14)
-    c.drawCentredString(text_x + text_w / 2, y - 8, config.org_name)
+    _draw_text(c, config.org_name, BODY_BOLD, 14, text_x + text_w / 2, y - 8, align="center")
     if config.org_tagline:
-        c.setFont(BODY, 9)
-        c.drawCentredString(text_x + text_w / 2, y - 22, config.org_tagline)
+        _draw_text(c, config.org_tagline, BODY, 9, text_x + text_w / 2, y - 22, align="center")
 
     y -= logo_size + 20
 
@@ -173,8 +207,7 @@ def generate_hall_ticket_page(
     c.drawCentredString(PAGE_W / 2, y - bar_h + 9, "ADMIT CARD")
     y -= bar_h + 16
 
-    c.setFont(BODY_BOLD, 11)
-    c.drawCentredString(PAGE_W / 2, y, config.exam_title)
+    _draw_text(c, config.exam_title, BODY_BOLD, 11, PAGE_W / 2, y, align="center")
     y -= 22
 
     c.setFont(BODY_BOLD, 11)
@@ -212,11 +245,10 @@ def generate_hall_ticket_page(
     c.line(PAGE_W - MARGIN - 160, line_y, PAGE_W - MARGIN, line_y)
     text_y = line_y - 12
     if config.signatory_name:
-        c.setFont(BODY_BOLD, 9)
-        c.drawRightString(PAGE_W - MARGIN, text_y, config.signatory_name)
+        _draw_text(c, config.signatory_name, BODY_BOLD, 9, PAGE_W - MARGIN, text_y, align="right")
         text_y -= 11
-    c.setFont(BODY_BOLD if not config.signatory_name else BODY, 9 if not config.signatory_name else 8)
-    c.drawRightString(PAGE_W - MARGIN, text_y, config.signatory_title)
+    title_font, title_size = (BODY_BOLD, 9) if not config.signatory_name else (BODY, 8)
+    _draw_text(c, config.signatory_title, title_font, title_size, PAGE_W - MARGIN, text_y, align="right")
 
 
 def generate_hall_ticket_pdf(

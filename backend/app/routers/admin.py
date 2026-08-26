@@ -11,6 +11,8 @@ from app.schemas import (
     AttendanceResponse,
     AttendanceRow,
     CenterStats,
+    DeleteResult,
+    DeleteStudentsRequest,
     ExamCenterOut,
     JobStartedResponse,
     JobStatusResponse,
@@ -25,6 +27,7 @@ from app.schemas import (
 from app.security import hash_password, require_admin
 from app.services.email_service import send_all_pending_emails
 from app.services.excel_import import import_students_excel
+from app.services.student_deletion import delete_all_students, delete_students
 from app.services.ticket_batch import generate_tickets_for_all
 from app.services.ticket_files import ensure_ticket_pdf_on_disk
 from app.timeutils import ist_today
@@ -39,8 +42,8 @@ def upload_students(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
-    if not file.filename.endswith((".xlsx", ".xlsm")):
-        raise HTTPException(status_code=400, detail="Please upload a .xlsx Excel file")
+    if not file.filename.lower().endswith((".xlsx", ".xlsm", ".pdf", ".docx")):
+        raise HTTPException(status_code=400, detail="Please upload a .xlsx, .xlsm, .pdf, or .docx file")
     content = file.file.read()
     try:
         upload, errors = import_students_excel(db, content, file.filename, admin.id, exam_center_id)
@@ -128,6 +131,24 @@ def list_students(db: Session = Depends(get_db)):
     return result
 
 
+@router.delete("/students", response_model=DeleteResult)
+def delete_all_students_endpoint(db: Session = Depends(get_db)):
+    return DeleteResult(deleted=delete_all_students(db))
+
+
+@router.post("/students/delete", response_model=DeleteResult)
+def delete_students_endpoint(payload: DeleteStudentsRequest, db: Session = Depends(get_db)):
+    return DeleteResult(deleted=delete_students(db, payload.student_ids))
+
+
+@router.delete("/students/{student_id}", response_model=DeleteResult)
+def delete_student_endpoint(student_id: int, db: Session = Depends(get_db)):
+    student = db.get(Student, student_id)
+    if student is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
+    return DeleteResult(deleted=delete_students(db, [student_id]))
+
+
 @router.get("/students/{student_id}/ticket")
 def download_ticket(student_id: int, db: Session = Depends(get_db)):
     student = db.get(Student, student_id)
@@ -138,6 +159,7 @@ def download_ticket(student_id: int, db: Session = Depends(get_db)):
         pdf_path,
         media_type="application/pdf",
         filename=f"hall_ticket_{student.full_name}.pdf",
+        headers={"Cache-Control": "no-store"},
     )
 
 
@@ -228,3 +250,18 @@ def update_teacher(teacher_id: int, payload: TeacherUpdate, db: Session = Depend
     db.commit()
     db.refresh(teacher)
     return teacher
+
+
+@router.delete("/teachers/{teacher_id}", response_model=DeleteResult)
+def delete_teacher_endpoint(teacher_id: int, db: Session = Depends(get_db)):
+    teacher = db.query(User).filter(User.id == teacher_id, User.role == "teacher").first()
+    if teacher is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Teacher not found")
+    if db.query(Scan).filter(Scan.teacher_id == teacher_id).first() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This teacher has attendance scan history and can't be deleted — revoke their access instead.",
+        )
+    db.delete(teacher)
+    db.commit()
+    return DeleteResult(deleted=1)

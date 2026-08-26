@@ -69,6 +69,20 @@ button {
   background: #475569;
 }
 
+.btn-danger {
+  background: #dc2626;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.login-version {
+  text-align: center;
+  color: #64748b;
+  font-size: 12px;
+}
+
 .error-banner {
   background: #7f1d1d;
   color: #fecaca;

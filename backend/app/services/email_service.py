@@ -14,8 +14,11 @@ MAX_ATTEMPTS = 3
 
 
 def _connect_smtp() -> smtplib.SMTP:
-    server = smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30)
-    server.starttls()
+    if settings.smtp_port == 465:
+        server = smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, timeout=30)
+    else:
+        server = smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30)
+        server.starttls()
     server.login(settings.smtp_username, settings.smtp_app_password)
     return server
 

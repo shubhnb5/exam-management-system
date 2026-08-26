@@ -131,7 +131,7 @@ export default function Scanner() {
     <div className="scanner-page">
       <header className="scanner-header">
         <span>{fullName}</span>
-        <button className="btn-small" onClick={logout}>
+        <button className="btn-small btn-danger" onClick={logout}>
           Log out
         </button>
       </header>

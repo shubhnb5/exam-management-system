@@ -66,6 +66,14 @@ class UploadResult(BaseModel):
     errors: list[str]
 
 
+class DeleteStudentsRequest(BaseModel):
+    student_ids: list[int]
+
+
+class DeleteResult(BaseModel):
+    deleted: int
+
+
 class GenerateTicketsResult(BaseModel):
     generated: int
     skipped_existing: int

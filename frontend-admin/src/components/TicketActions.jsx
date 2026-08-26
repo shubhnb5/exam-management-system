@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import api from "../api";
+import CollapsibleCard from "./CollapsibleCard";
+import { useToast } from "./ToastProvider";
 
 const POLL_MS = 2000;
 
 export default function TicketActions({ onDone }) {
+  const { showToast } = useToast();
   const [genBusy, setGenBusy] = useState(false);
   const [emailBusy, setEmailBusy] = useState(false);
   const [genResult, setGenResult] = useState(null);
@@ -39,8 +42,20 @@ export default function TicketActions({ onDone }) {
         pollGenerate();
       } else {
         setGenBusy(false);
-        if (res.data.status === "done") setGenResult(res.data.result);
-        if (res.data.status === "error") setError(`Ticket generation failed: ${res.data.result?.error}`);
+        if (res.data.status === "done") {
+          setGenResult(res.data.result);
+          const r = res.data.result;
+          showToast(
+            `Hall tickets generated: ${r.generated} new, ${r.skipped_existing} already existed${
+              r.failed?.length ? `, ${r.failed.length} failed` : ""
+            }.`,
+            r.failed?.length ? "error" : "success"
+          );
+        }
+        if (res.data.status === "error") {
+          setError(`Ticket generation failed: ${res.data.result?.error}`);
+          showToast(`Ticket generation failed: ${res.data.result?.error}`, "error");
+        }
         onDone && onDone();
       }
     }, POLL_MS);
@@ -53,8 +68,18 @@ export default function TicketActions({ onDone }) {
         pollSendEmails();
       } else {
         setEmailBusy(false);
-        if (res.data.status === "done") setEmailResult(res.data.result);
-        if (res.data.status === "error") setError(`Email sending failed: ${res.data.result?.error}`);
+        if (res.data.status === "done") {
+          setEmailResult(res.data.result);
+          const r = res.data.result;
+          showToast(
+            `Emails sent: ${r.sent} sent${r.failed ? `, ${r.failed} failed` : ""}.`,
+            r.failed ? "error" : "success"
+          );
+        }
+        if (res.data.status === "error") {
+          setError(`Email sending failed: ${res.data.result?.error}`);
+          showToast(`Email sending failed: ${res.data.result?.error}`, "error");
+        }
         onDone && onDone();
       }
     }, POLL_MS);
@@ -69,7 +94,9 @@ export default function TicketActions({ onDone }) {
       pollGenerate();
     } catch (err) {
       setGenBusy(false);
-      setError(err.response?.data?.detail || "Could not start ticket generation.");
+      const msg = err.response?.data?.detail || "Could not start ticket generation.";
+      setError(msg);
+      showToast(msg, "error");
     }
   }
 
@@ -82,13 +109,14 @@ export default function TicketActions({ onDone }) {
       pollSendEmails();
     } catch (err) {
       setEmailBusy(false);
-      setError(err.response?.data?.detail || "Could not start email sending.");
+      const msg = err.response?.data?.detail || "Could not start email sending.";
+      setError(msg);
+      showToast(msg, "error");
     }
   }
 
   return (
-    <div className="card">
-      <h2>Generate &amp; Send</h2>
+    <CollapsibleCard title="Generate & Send">
       <p className="muted">
         With hundreds of students this can take a while — it runs in the background, so it's safe to leave this page
         and come back; the status here will pick back up.
@@ -118,6 +146,6 @@ export default function TicketActions({ onDone }) {
           <span className="badge badge-red">{emailResult.failed} failed</span>
         </div>
       )}
-    </div>
+    </CollapsibleCard>
   );
 }

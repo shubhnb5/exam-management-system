@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
 import api from "../api";
+import CollapsibleCard from "./CollapsibleCard";
+import { truncate } from "../utils/text";
 
 export default function ExcelUpload({ centers, onUploaded }) {
   const [examCenterId, setExamCenterId] = useState("");
@@ -37,12 +39,12 @@ export default function ExcelUpload({ centers, onUploaded }) {
   }
 
   return (
-    <div className="card">
-      <h2>Upload Student Excel Sheet</h2>
+    <CollapsibleCard title="Upload Student Excel Sheet">
       <p className="muted">
-        Columns expected: Student Name, Email, Mobile Number. Every student in this sheet is assigned to the exam
-        center selected below — upload one sheet per center. Re-uploading updates existing students by email without
-        duplicating them (including moving them to a different center if re-uploaded under a different selection).
+        Accepts .xlsx, .xlsm, .pdf, or .docx (a table with the same columns). Columns expected: Student Name, Email,
+        Mobile Number. Every student in this sheet is assigned to the exam center selected below — upload one sheet
+        per center. Re-uploading updates existing students by email without duplicating them (including moving them
+        to a different center if re-uploaded under a different selection).
       </p>
 
       <label className="center-select-label">
@@ -52,8 +54,8 @@ export default function ExcelUpload({ centers, onUploaded }) {
             Select exam center...
           </option>
           {centers.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
+            <option key={c.id} value={c.id} title={c.name}>
+              {truncate(c.name)}
             </option>
           ))}
         </select>
@@ -76,12 +78,12 @@ export default function ExcelUpload({ centers, onUploaded }) {
         {busy
           ? "Uploading..."
           : centerSelected
-            ? "Drag & drop your .xlsx file here, or click to browse"
+            ? "Drag & drop your .xlsx, .pdf, or .docx file here, or click to browse"
             : "Select an exam center above first"}
         <input
           ref={inputRef}
           type="file"
-          accept=".xlsx,.xlsm"
+          accept=".xlsx,.xlsm,.pdf,.docx"
           style={{ display: "none" }}
           onChange={(e) => uploadFile(e.target.files[0])}
         />
@@ -105,6 +107,6 @@ export default function ExcelUpload({ centers, onUploaded }) {
           )}
         </div>
       )}
-    </div>
+    </CollapsibleCard>
   );
 }
