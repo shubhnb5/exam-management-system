@@ -1,0 +1,21 @@
+{
+  "org_name": "COMBINE MENTOR OFFICIAL",
+  "org_tagline": "Vision of Every Aspirant's",
+  "logo_path": "logo.jpeg",
+  "signature_path": null,
+  "exam_title": "संयुक्त गट क पूर्व परीक्षा-२०२६",
+  "subject_code": "1122",
+  "signatory_title": "Head of Examination",
+  "signatory_name": null,
+  "website": null,
+  "telegram_handle": null,
+  "timetable": [
+    { "subject": "Comprehensive Test 1", "date": "23-08-2026", "time": "11:00 AM - 12:00 PM" },
+    { "subject": "Comprehensive Test 2", "date": "30-08-2026", "time": "11:00 AM - 12:00 PM" },
+    { "subject": "Comprehensive Test 3", "date": "06-09-2026", "time": "11:00 AM - 12:00 PM" },
+    { "subject": "Comprehensive Test 4", "date": "13-09-2026", "time": "11:00 AM - 12:00 PM" },
+    { "subject": "Comprehensive Test 5", "date": "27-09-2026", "time": "11:00 AM - 12:00 PM" },
+    { "subject": "Comprehensive Test 6", "date": "04-10-2026", "time": "11:00 AM - 12:00 PM" },
+    { "subject": "Comprehensive Test 7", "date": "11-10-2026", "time": "11:00 AM - 12:00 PM" }
+  ]
+}
