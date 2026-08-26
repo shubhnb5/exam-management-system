@@ -1,0 +1,57 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-examflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-examflow}
+      POSTGRES_DB: ${POSTGRES_DB:-examflow}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-examflow}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-examflow}:${POSTGRES_PASSWORD:-examflow}@db:5432/${POSTGRES_DB:-examflow}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./ticket_template:/ticket_template
+      - ./backend/storage:/app/storage
+
+  frontend-admin:
+    build:
+      context: ./frontend-admin
+      args:
+        VITE_API_URL: ${PUBLIC_API_URL:-http://localhost:8000}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
+  frontend-scanner:
+    build:
+      context: ./frontend-scanner
+      args:
+        VITE_API_URL: ${PUBLIC_API_URL:-http://localhost:8000}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8081:80"
+
+volumes:
+  db_data:
