@@ -153,6 +153,13 @@ activemq-data/
 .venv
 env/
 venv/
+
+# Node / React
+node_modules/
+
+# Generated hall tickets (student PII, never commit)
+backend/storage/tickets/*
+!backend/storage/tickets/.gitkeep
 ENV/
 env.bak/
 venv.bak/
