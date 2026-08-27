@@ -25,8 +25,6 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-examflow}:${POSTGRES_PASSWORD:-examflow}@db:5432/${POSTGRES_DB:-examflow}
-    ports:
-      - "8000:8000"
     volumes:
       - ./ticket_template:/ticket_template
       - ./backend/storage:/app/storage
@@ -39,8 +37,6 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
-    ports:
-      - "8080:80"
 
   frontend-scanner:
     build:
@@ -50,8 +46,29 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+
+  # Terminates real HTTPS (via Let's Encrypt, automatic) for all three services
+  # above, none of which are reachable directly from outside anymore — this is
+  # the only container that publishes ports to the host. Camera access in the
+  # scanner app requires a secure (https) context, which is the whole reason
+  # this exists: plain HTTP over a bare server IP can't provide that.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    env_file: .env
     ports:
-      - "8081:80"
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+      - frontend-admin
+      - frontend-scanner
 
 volumes:
   db_data:
+  caddy_data:
+  caddy_config:

@@ -129,6 +129,7 @@ def build():
         "Part 8 — First-time setup after deployment",
         "Part 9 — Exam day checklist",
         "Part 10 — If something goes wrong",
+        "Part 11 — Self-hosting with Docker Compose (advanced alternative)",
         "Appendix — Using your own domain name (optional)",
     ]
     story.append(ListFlowable(
@@ -553,6 +554,72 @@ def build():
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, BOXBG]),
     ]))
     story.append(tr_table)
+
+    # ---------- Part 11: Self-hosting ----------
+    story.append(PageBreak())
+    h1p("Part 11 — Self-hosting with Docker Compose (advanced alternative)")
+    p(
+        "Parts 1–10 above cover the recommended path (Render + Neon), which handles HTTPS and servers for "
+        "you automatically. If you'd rather run everything on your own server/VPS using this project's "
+        "docker-compose.yml instead, this section covers that path — including the one thing Render gave "
+        "you for free that a bare server doesn't: HTTPS, which the scanner app requires for camera access."
+    )
+    warn_box(
+        "Without HTTPS, teachers will see \"Could not access camera — camera access is only supported in a "
+        "secure context (https or localhost)\" when they try to scan. This isn't optional for the scanner app."
+    )
+    h2p("Step 11.1 — Get the code onto your server")
+    steps([
+        "Copy this project onto your server (e.g. <font face=\"Courier\">git clone</font> your repository "
+        "there, or however you normally transfer files to it).",
+        "Create a <font face=\"Courier\">.env</font> file in the project's root folder — copy "
+        "<font face=\"Courier\">.env.example</font> and fill in real values (database password, JWT secret, "
+        "Gmail app password from Part 1, admin password from Part 7).",
+    ])
+    h2p("Step 11.2 — Get a free HTTPS address for your server")
+    p(
+        "Browsers block camera access on any page that isn't served over https:// (localhost is the only "
+        "exception) — so a bare server IP over plain http will not work for the scanner app. If you don't "
+        "own a domain name, <b>sslip.io</b> provides free working hostnames for any server, no signup required."
+    )
+    steps([
+        "Find your server's public IP address (e.g. <font face=\"Courier\">203.0.113.10</font>).",
+        "Replace the dots with dashes and append <font face=\"Courier\">.sslip.io</font> — e.g. "
+        "<font face=\"Courier\">203.0.113.10</font> becomes <font face=\"Courier\">203-0-113-10.sslip.io</font>. "
+        "Any subdomain of this (like <font face=\"Courier\">admin.203-0-113-10.sslip.io</font>) automatically "
+        "resolves straight to your server, with zero setup.",
+    ])
+    tip_box(
+        "Already have your own domain? Use real subdomains instead (e.g. admin.yourcollege.com) — just point "
+        "their DNS A records at your server's IP and use those in place of the sslip.io addresses below."
+    )
+    h2p("Step 11.3 — Add the domain variables to your .env")
+    p("Add these four lines to your server's .env file, using your own IP in place of the example:")
+    code_box(
+        "ADMIN_DOMAIN=admin.203-0-113-10.sslip.io\n"
+        "SCANNER_DOMAIN=scanner.203-0-113-10.sslip.io\n"
+        "API_DOMAIN=api.203-0-113-10.sslip.io\n"
+        "PUBLIC_API_URL=https://api.203-0-113-10.sslip.io"
+    )
+    h2p("Step 11.4 — Open the firewall and start everything")
+    steps([
+        "Make sure your server's firewall allows inbound traffic on <b>ports 80 and 443</b> (443 for HTTPS "
+        "itself, 80 for the automatic certificate check). The individual app ports no longer need to be "
+        "open — only the reverse proxy (Caddy) is exposed directly now.",
+        "Run: <font face=\"Courier\">docker compose up -d --build</font>",
+        "Wait about 10–30 seconds the first time — Caddy automatically fetches a real, trusted HTTPS "
+        "certificate from Let's Encrypt for each of the three addresses, with no manual certificate work.",
+    ])
+    tip_box(
+        "You'll know it worked when opening https://scanner.&lt;your-ip-with-dashes&gt;.sslip.io on a phone "
+        "shows a normal padlock icon with no security warning, and the browser asks for camera permission "
+        "normally instead of refusing outright."
+    )
+    warn_box(
+        "If you change PUBLIC_API_URL or any *_DOMAIN value later, you must rebuild with "
+        "<font face=\"Courier\">docker compose up -d --build</font> again — like Render's VITE_API_URL, this "
+        "gets baked into the frontend at build time, not read at runtime."
+    )
 
     # ---------- Appendix ----------
     story.append(PageBreak())
