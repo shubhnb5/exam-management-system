@@ -580,26 +580,29 @@ def build():
     p(
         "Browsers block camera access on any page that isn't served over https:// (localhost is the only "
         "exception) — so a bare server IP over plain http will not work for the scanner app. If you don't "
-        "own a domain name, <b>sslip.io</b> provides free working hostnames for any server, no signup required."
+        "own a domain name, <b>sslip.io</b> provides a free working hostname for any server, no signup required."
     )
     steps([
         "Find your server's public IP address (e.g. <font face=\"Courier\">203.0.113.10</font>).",
         "Replace the dots with dashes and append <font face=\"Courier\">.sslip.io</font> — e.g. "
         "<font face=\"Courier\">203.0.113.10</font> becomes <font face=\"Courier\">203-0-113-10.sslip.io</font>. "
-        "Any subdomain of this (like <font face=\"Courier\">admin.203-0-113-10.sslip.io</font>) automatically "
-        "resolves straight to your server, with zero setup.",
+        "This automatically resolves straight to your server, with zero setup.",
     ])
     tip_box(
-        "Already have your own domain? Use real subdomains instead (e.g. admin.yourcollege.com) — just point "
-        "their DNS A records at your server's IP and use those in place of the sslip.io addresses below."
+        "Already have your own domain? Use it instead (e.g. yourcollege.com) — just point its DNS A record at "
+        "your server's IP and use that in place of the sslip.io address below."
     )
     h2p("Step 11.3 — Add the domain variables to your .env")
-    p("Add these four lines to your server's .env file, using your own IP in place of the example:")
+    p(
+        "Everything is served off this single domain, split by path: /admin/ for the dashboard, /scanner/ "
+        "for the scanner PWA, /api/ for the backend. Add these lines to your server's .env file, using your "
+        "own IP in place of the example:"
+    )
     code_box(
-        "ADMIN_DOMAIN=admin.203-0-113-10.sslip.io\n"
-        "SCANNER_DOMAIN=scanner.203-0-113-10.sslip.io\n"
-        "API_DOMAIN=api.203-0-113-10.sslip.io\n"
-        "PUBLIC_API_URL=https://api.203-0-113-10.sslip.io"
+        "DOMAIN=203-0-113-10.sslip.io\n"
+        "ADMIN_BASE_PATH=/admin/\n"
+        "SCANNER_BASE_PATH=/scanner/\n"
+        "PUBLIC_API_URL=/api"
     )
     h2p("Step 11.4 — Open the firewall and start everything")
     steps([
@@ -608,17 +611,17 @@ def build():
         "open — only the reverse proxy (Caddy) is exposed directly now.",
         "Run: <font face=\"Courier\">docker compose up -d --build</font>",
         "Wait about 10–30 seconds the first time — Caddy automatically fetches a real, trusted HTTPS "
-        "certificate from Let's Encrypt for each of the three addresses, with no manual certificate work.",
+        "certificate from Let's Encrypt for the domain, with no manual certificate work.",
     ])
     tip_box(
-        "You'll know it worked when opening https://scanner.&lt;your-ip-with-dashes&gt;.sslip.io on a phone "
+        "You'll know it worked when opening https://&lt;your-ip-with-dashes&gt;.sslip.io/scanner/ on a phone "
         "shows a normal padlock icon with no security warning, and the browser asks for camera permission "
         "normally instead of refusing outright."
     )
     warn_box(
-        "If you change PUBLIC_API_URL or any *_DOMAIN value later, you must rebuild with "
-        "<font face=\"Courier\">docker compose up -d --build</font> again — like Render's VITE_API_URL, this "
-        "gets baked into the frontend at build time, not read at runtime."
+        "If you change PUBLIC_API_URL, ADMIN_BASE_PATH, or SCANNER_BASE_PATH later, you must rebuild with "
+        "<font face=\"Courier\">docker compose up -d --build</font> again — like Render's VITE_API_URL, these "
+        "get baked into the frontend at build time, not read at runtime."
     )
 
     # ---------- Appendix ----------
