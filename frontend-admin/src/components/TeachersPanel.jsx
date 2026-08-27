@@ -39,10 +39,13 @@ export default function TeachersPanel({ teachers, centers, onChanged }) {
     setBusy(true);
     try {
       await api.post("/admin/teachers", { ...form, exam_center_id: Number(form.exam_center_id) });
+      showToast(`Added teacher ${form.username}.`, "success");
       setForm({ username: "", password: "", full_name: "", exam_center_id: centers[0]?.id || "" });
       onChanged();
     } catch (err) {
-      setError(err.response?.data?.detail || "Could not create teacher.");
+      const msg = err.response?.data?.detail || "Could not create teacher.";
+      setError(msg);
+      showToast(msg, "error");
     } finally {
       setBusy(false);
     }

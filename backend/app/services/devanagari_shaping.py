@@ -16,6 +16,7 @@ cells, and `ShapedParagraphFlowable` for multi-line word-wrapped paragraphs
 """
 
 import re
+from functools import lru_cache
 from io import BytesIO
 
 import freetype
@@ -110,10 +111,15 @@ def _shape_to_mask(text: str, font_path: str) -> tuple[Image.Image, float]:
     return mask, baseline_y
 
 
+@lru_cache(maxsize=512)
 def render_shaped_png(text: str, font_path: str, font_size_pt: float) -> tuple[bytes, float, float, float]:
     """Shapes and rasterizes `text`, returning
     (png_bytes, width_pt, height_pt, baseline_from_top_pt) scaled to
-    `font_size_pt`. The PNG is black-on-transparent, ready for `drawImage`."""
+    `font_size_pt`. The PNG is black-on-transparent, ready for `drawImage`.
+    Cached: hall-ticket batches call this with the same handful of strings
+    (exam title, rule text, etc.) for every single student, and shaping +
+    rasterizing through HarfBuzz/FreeType is the most expensive step here —
+    so a repeat call for identical (text, font, size) is pure lookup."""
     mask, baseline_px = _shape_to_mask(text, font_path)
     pt_per_px = font_size_pt / _RENDER_PX
 
@@ -131,6 +137,7 @@ def render_shaped_png(text: str, font_path: str, font_size_pt: float) -> tuple[b
     )
 
 
+@lru_cache(maxsize=512)
 def measure_shaped_width_pt(text: str, font_path: str, font_size_pt: float) -> float:
     """Shapes `text` and returns its advance width in points, without
     rasterizing — used for word-wrapping, where many candidate line widths

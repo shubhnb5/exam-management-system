@@ -594,14 +594,14 @@ def build():
     )
     h2p("Step 11.3 — Add the domain variables to your .env")
     p(
-        "Everything is served off this single domain, split by path: /admin/ for the dashboard, /scanner/ "
+        "Everything is served off this single domain, split by path: /admin/ for the dashboard, /scan/ "
         "for the scanner PWA, /api/ for the backend. Add these lines to your server's .env file, using your "
         "own IP in place of the example:"
     )
     code_box(
         "DOMAIN=203-0-113-10.sslip.io\n"
         "ADMIN_BASE_PATH=/admin/\n"
-        "SCANNER_BASE_PATH=/scanner/\n"
+        "SCANNER_BASE_PATH=/scan/\n"
         "PUBLIC_API_URL=/api"
     )
     h2p("Step 11.4 — Open the firewall and start everything")
@@ -614,7 +614,7 @@ def build():
         "certificate from Let's Encrypt for the domain, with no manual certificate work.",
     ])
     tip_box(
-        "You'll know it worked when opening https://&lt;your-ip-with-dashes&gt;.sslip.io/scanner/ on a phone "
+        "You'll know it worked when opening https://&lt;your-ip-with-dashes&gt;.sslip.io/scan/ on a phone "
         "shows a normal padlock icon with no security warning, and the browser asks for camera permission "
         "normally instead of refusing outright."
     )

@@ -42,8 +42,8 @@ def upload_students(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
-    if not file.filename.lower().endswith((".xlsx", ".xlsm", ".pdf", ".docx")):
-        raise HTTPException(status_code=400, detail="Please upload a .xlsx, .xlsm, .pdf, or .docx file")
+    if not file.filename.lower().endswith((".xlsx", ".xlsm", ".csv", ".pdf", ".docx")):
+        raise HTTPException(status_code=400, detail="Please upload a .xlsx, .xlsm, .csv, .pdf, or .docx file")
     content = file.file.read()
     try:
         upload, errors = import_students_excel(db, content, file.filename, admin.id, exam_center_id)

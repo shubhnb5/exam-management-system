@@ -2,8 +2,10 @@ import { useRef, useState } from "react";
 import api from "../api";
 import CollapsibleCard from "./CollapsibleCard";
 import { truncate } from "../utils/text";
+import { useToast } from "./ToastProvider";
 
 export default function ExcelUpload({ centers, onUploaded }) {
+  const { showToast } = useToast();
   const [examCenterId, setExamCenterId] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -30,9 +32,16 @@ export default function ExcelUpload({ centers, onUploaded }) {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setResult(res.data);
+      const { new_students, updated_students, error_count } = res.data.upload;
+      showToast(
+        `Uploaded: ${new_students} new, ${updated_students} updated${error_count ? `, ${error_count} errors` : ""}.`,
+        error_count ? "error" : "success"
+      );
       onUploaded && onUploaded();
     } catch (err) {
-      setError(err.response?.data?.detail || "Upload failed.");
+      const msg = err.response?.data?.detail || "Upload failed.";
+      setError(msg);
+      showToast(msg, "error");
     } finally {
       setBusy(false);
     }
@@ -41,10 +50,10 @@ export default function ExcelUpload({ centers, onUploaded }) {
   return (
     <CollapsibleCard title="Upload Student Excel Sheet">
       <p className="muted">
-        Accepts .xlsx, .xlsm, .pdf, or .docx (a table with the same columns). Columns expected: Student Name, Email,
-        Mobile Number. Every student in this sheet is assigned to the exam center selected below — upload one sheet
-        per center. Re-uploading updates existing students by email without duplicating them (including moving them
-        to a different center if re-uploaded under a different selection).
+        Accepts .xlsx, .xlsm, .csv, .pdf, or .docx (a table with the same columns). Columns expected: Student Name,
+        Email, Mobile Number. Every student in this sheet is assigned to the exam center selected below — upload one
+        sheet per center. Re-uploading updates existing students by email without duplicating them (including moving
+        them to a different center if re-uploaded under a different selection).
       </p>
 
       <label className="center-select-label">
@@ -78,12 +87,12 @@ export default function ExcelUpload({ centers, onUploaded }) {
         {busy
           ? "Uploading..."
           : centerSelected
-            ? "Drag & drop your .xlsx, .pdf, or .docx file here, or click to browse"
+            ? "Drag & drop your .xlsx, .csv, .pdf, or .docx file here, or click to browse"
             : "Select an exam center above first"}
         <input
           ref={inputRef}
           type="file"
-          accept=".xlsx,.xlsm,.pdf,.docx"
+          accept=".xlsx,.xlsm,.csv,.pdf,.docx"
           style={{ display: "none" }}
           onChange={(e) => uploadFile(e.target.files[0])}
         />

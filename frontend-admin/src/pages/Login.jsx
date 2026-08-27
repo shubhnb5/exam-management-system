@@ -2,8 +2,10 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
 import { APP_VERSION } from "../version";
+import { useToast } from "../components/ToastProvider";
 
 export default function Login() {
+  const { showToast } = useToast();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -28,9 +30,11 @@ export default function Login() {
       }
       localStorage.setItem("token", res.data.access_token);
       localStorage.setItem("role", res.data.role);
+      showToast("Signed in.", "success");
       navigate("/dashboard");
     } catch {
       setError("Invalid username or password.");
+      showToast("Invalid username or password.", "error");
     } finally {
       setLoading(false);
     }

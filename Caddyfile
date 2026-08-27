@@ -5,7 +5,7 @@
 		reverse_proxy frontend-admin:80
 	}
 
-	handle_path /scanner* {
+	handle_path /scan* {
 		reverse_proxy frontend-scanner:80
 	}
 

@@ -164,7 +164,8 @@ export default function StudentsTable({ students, centers, onChanged }) {
                               .then((res) => {
                                 const url = window.URL.createObjectURL(res.data);
                                 window.open(url, "_blank");
-                              });
+                              })
+                              .catch(() => showToast("Could not open hall ticket.", "error"));
                           }}
                         >
                           View PDF

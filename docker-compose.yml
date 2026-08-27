@@ -44,7 +44,7 @@ services:
       context: ./frontend-scanner
       args:
         VITE_API_URL: ${PUBLIC_API_URL:-/api}
-        VITE_BASE_PATH: ${SCANNER_BASE_PATH:-/scanner/}
+        VITE_BASE_PATH: ${SCANNER_BASE_PATH:-/scan/}
     restart: unless-stopped
     depends_on:
       - backend
