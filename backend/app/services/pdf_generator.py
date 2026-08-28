@@ -495,12 +495,14 @@ def generate_hall_ticket_page(
         c.drawImage(
             sig_img,
             (line_left + line_right) / 2 - sig_w / 2,
-            line_y + 3,
+            line_y + 13,
             width=sig_w,
             height=sig_h,
             preserveAspectRatio=True,
             mask="auto",
         )
+
+    _draw_text(c, "Ganesh Pawar", BODY_BOLD, 8, (line_left + line_right) / 2, line_y + 3, align="center")
 
     c.line(line_left, line_y, line_right, line_y)
     text_y = line_y - 12
