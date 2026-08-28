@@ -9,8 +9,10 @@ import TeachersPanel from "../components/TeachersPanel";
 import AttendancePanel from "../components/AttendancePanel";
 import Sidebar from "../components/Sidebar";
 import Spinner from "../components/Spinner";
+import { useToast } from "../components/ToastProvider";
 
 export default function Dashboard() {
+  const { showToast } = useToast();
   const [students, setStudents] = useState([]);
   const [centers, setCenters] = useState([]);
   const [teachers, setTeachers] = useState([]);
@@ -65,6 +67,7 @@ export default function Dashboard() {
   function logout() {
     localStorage.removeItem("token");
     localStorage.removeItem("role");
+    showToast("Logged out.", "success");
     navigate("/login");
   }
 

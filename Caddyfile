@@ -1,11 +1,15 @@
-{$ADMIN_DOMAIN} {
-	reverse_proxy frontend-admin:80
-}
+{$DOMAIN} {
+	redir / /admin/
 
-{$SCANNER_DOMAIN} {
-	reverse_proxy frontend-scanner:80
-}
+	handle_path /admin* {
+		reverse_proxy frontend-admin:80
+	}
 
-{$API_DOMAIN} {
-	reverse_proxy backend:8000
+	handle_path /scan* {
+		reverse_proxy frontend-scanner:80
+	}
+
+	handle_path /api* {
+		reverse_proxy backend:8000
+	}
 }

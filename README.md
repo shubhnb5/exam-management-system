@@ -56,9 +56,11 @@ Edit `ticket_template/config.json` for your actual org name, exam title, subject
 docker compose up --build
 ```
 
-- Backend: http://localhost:8000
-- Admin dashboard: http://localhost:8080
-- Scanner PWA: http://localhost:8081
+Caddy is the only container exposed to the outside world (ports 80/443) and routes everything off a single domain by path, terminating real HTTPS automatically via Let's Encrypt — see `DOMAIN`, `ADMIN_BASE_PATH`, `SCANNER_BASE_PATH` in `.env.example`:
+
+- Admin dashboard: `https://<DOMAIN>/admin/`
+- Scanner PWA: `https://<DOMAIN>/scanner/`
+- Backend API: `https://<DOMAIN>/api/`
 
 Migrations run automatically on backend startup. A default admin user (`admin` / whatever you set `ADMIN_DEFAULT_PASSWORD` to) and two exam centers are seeded on first run.
 

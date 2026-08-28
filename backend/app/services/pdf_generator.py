@@ -1,4 +1,5 @@
 import json
+import math
 import os
 from dataclasses import dataclass, field
 from io import BytesIO
@@ -19,6 +20,12 @@ from app.services.rules_page import build_rules_page_pdf
 MARGIN = 36
 PAGE_W, PAGE_H = A4
 
+BRAND_BLUE = colors.Color(0.06, 0.22, 0.60)
+BRAND_GREEN = colors.Color(0.11, 0.47, 0.20)
+STAMP_COLOR = colors.Color(0.42, 0.11, 0.60)
+ADDRESS_GREY = colors.Color(0.30, 0.30, 0.30)
+CAPTION_GREY = colors.Color(0.35, 0.35, 0.35)
+
 
 @dataclass
 class TicketConfig:
@@ -32,6 +39,7 @@ class TicketConfig:
     signatory_name: str | None = None
     website: str | None = None
     telegram_handle: str | None = None
+    org_address: str | None = None
     timetable: list[dict] = field(default_factory=list)
     rules_page_pdf_path: str | None = None
 
@@ -47,12 +55,39 @@ class TicketConfig:
         return cls(**data)
 
 
-def _draw_text(c: canvas.Canvas, text: str, font_name: str, font_size: float, x: float, y: float, align: str = "left"):
+_rules_page_cache: dict[str, bytes] = {}
+
+
+def _get_rules_page_bytes(config: TicketConfig) -> bytes:
+    """The rules page is identical for every student in a batch (it only
+    depends on config.org_name — see rules_page.py), but building it involves
+    a full reportlab flowable layout plus HarfBuzz-shaping several Devanagari
+    lines. Rebuilding that per student was one of the biggest costs in a
+    hall-ticket batch, so it's built once per org_name and reused."""
+    cached = _rules_page_cache.get(config.org_name)
+    if cached is None:
+        cached = build_rules_page_pdf(config).getvalue()
+        _rules_page_cache[config.org_name] = cached
+    return cached
+
+
+def _draw_text(
+    c: canvas.Canvas,
+    text: str,
+    font_name: str,
+    font_size: float,
+    x: float,
+    y: float,
+    align: str = "left",
+    color=None,
+):
     """Draws `text` at baseline (x, y), same as reportlab's own drawString
     family — except Devanagari text is routed through HarfBuzz+FreeType
     shaping first (see devanagari_shaping.py) since reportlab can't form
     Indic conjuncts on its own. Non-Devanagari text is drawn exactly as
-    before, so this is a no-op behavior change for plain English tickets."""
+    before, so this is a no-op behavior change for plain English tickets.
+    `color` only applies to the non-Devanagari path — omit it (default) to
+    keep drawing in whatever fill color the canvas already has, unchanged."""
     text = str(text)
     if contains_devanagari(text):
         png_bytes, w, h, baseline = render_shaped_png(text, FONT_PATHS[font_name], font_size)
@@ -65,12 +100,117 @@ def _draw_text(c: canvas.Canvas, text: str, font_name: str, font_size: float, x:
         c.drawImage(ImageReader(BytesIO(png_bytes)), draw_x, y - baseline, width=w, height=h, mask="auto")
     else:
         c.setFont(font_name, font_size)
+        if color is not None:
+            c.setFillColor(color)
         if align == "center":
             c.drawCentredString(x, y, text)
         elif align == "right":
             c.drawRightString(x, y, text)
         else:
             c.drawString(x, y, text)
+        if color is not None:
+            c.setFillColor(colors.black)
+
+
+def _draw_wrapped_center(
+    c: canvas.Canvas,
+    text: str,
+    font_name: str,
+    font_size: float,
+    cx: float,
+    top_y: float,
+    max_width: float,
+    color=None,
+    line_gap: float | None = None,
+) -> float:
+    """Word-wraps `text` to fit `max_width`, drawing each line centered on
+    `cx` starting at `top_y` and moving downward. Returns the y position
+    just below the last line drawn."""
+    line_gap = line_gap or (font_size + 2)
+    words = str(text).split()
+    lines: list[str] = []
+    current = ""
+    for word in words:
+        trial = f"{current} {word}".strip()
+        if not current or c.stringWidth(trial, font_name, font_size) <= max_width:
+            current = trial
+        else:
+            lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+
+    y = top_y
+    for line in lines:
+        _draw_text(c, line, font_name, font_size, cx, y, align="center", color=color)
+        y -= line_gap
+    return y
+
+
+def _draw_arc_text(
+    c: canvas.Canvas,
+    text: str,
+    cx: float,
+    cy: float,
+    radius: float,
+    font_name: str,
+    font_size: float,
+    start_deg: float,
+    end_deg: float,
+    color,
+    flip: bool = False,
+):
+    """Draws `text` character-by-character along the circular arc from
+    `start_deg` to `end_deg` (standard math angles: 0=east, 90=north),
+    used to letter a seal/stamp ring. `flip` rotates each glyph 180 degrees
+    extra, for text running along the bottom of the ring."""
+    c.setFont(font_name, font_size)
+    widths = [c.stringWidth(ch, font_name, font_size) for ch in text]
+    total_width = sum(widths) or 1
+    total_angle = end_deg - start_deg
+    angle = start_deg
+    for ch, w in zip(text, widths):
+        span = (w / total_width) * total_angle
+        mid = angle + span / 2
+        rad = math.radians(mid)
+        x = cx + radius * math.cos(rad)
+        y = cy + radius * math.sin(rad)
+        c.saveState()
+        c.translate(x, y)
+        c.rotate((mid - 90) + (180 if flip else 0))
+        c.setFillColor(color)
+        c.setFont(font_name, font_size)
+        c.drawCentredString(0, 0, ch)
+        c.restoreState()
+        angle += span
+
+
+def _draw_official_stamp(c: canvas.Canvas, cx: float, cy: float, radius: float):
+    """Self-drawn circular exam-office seal (vector primitives only, no
+    external image asset) — used as the default bottom-left mark when no
+    real signature image has been configured."""
+    c.saveState()
+    c.setStrokeColor(STAMP_COLOR)
+    c.setLineWidth(1.3)
+    c.circle(cx, cy, radius, stroke=1, fill=0)
+    c.setLineWidth(0.6)
+    c.circle(cx, cy, radius - 4, stroke=1, fill=0)
+
+    _draw_arc_text(c, "COMBINE MENTOR", cx, cy, radius - 9, BODY_BOLD, 5.4, 150, 30, STAMP_COLOR)
+    _draw_arc_text(c, "OFFICIAL SEAL", cx, cy, radius - 9, BODY_BOLD, 5.0, 210, 330, STAMP_COLOR, flip=True)
+
+    c.setLineWidth(0.8)
+    c.setStrokeColor(STAMP_COLOR)
+    c.line(cx - radius + 5, cy, cx - radius + 11, cy)
+    c.line(cx + radius - 11, cy, cx + radius - 5, cy)
+
+    c.setFillColor(STAMP_COLOR)
+    c.setFont(BODY_BOLD, radius * 0.5)
+    c.drawCentredString(cx, cy - radius * 0.18, "CM")
+
+    c.setStrokeColor(colors.black)
+    c.setFillColor(colors.black)
+    c.restoreState()
 
 
 def _draw_border(c: canvas.Canvas):
@@ -88,6 +228,60 @@ def _draw_logo_placeholder(c: canvas.Canvas, x: float, y: float, size: float, lo
     c.drawCentredString(x + size / 2, y + size / 2 - 3, "LOGO")
 
 
+def _draw_photo_placeholder(c: canvas.Canvas, x: float, y: float, w: float, h: float):
+    """Reserved candidate-photo slot. No photo upload exists in the app yet,
+    so this draws a dashed frame with a plain black bust-silhouette icon
+    (the standard "person" glyph, à la 👤) standing in for a photo — drawn
+    with vector shapes rather than the literal emoji character, since the
+    ticket's embedded font (NotoSansDevanagari) has no emoji glyphs and
+    would render the character as a blank/missing-glyph box instead."""
+    c.saveState()
+    c.setDash(3, 2)
+    c.setLineWidth(1)
+    c.setStrokeColor(colors.grey)
+    c.rect(x, y, w, h, stroke=1, fill=0)
+    c.setDash()
+
+    label_h = 14
+    icon_bottom = y + label_h
+    icon_top = y + h - 10
+    icon_h = icon_top - icon_bottom
+    cx = x + w / 2
+
+    icon_scale = 0.78
+    scaled_h = icon_h * icon_scale
+    icon_top = icon_top - (icon_h - scaled_h) / 2
+    icon_bottom = icon_bottom + (icon_h - scaled_h) / 2
+    icon_h = scaled_h
+
+    c.setFillColor(colors.black)
+
+    head_r = icon_h * 0.21
+    head_cy = icon_top - head_r
+    c.circle(cx, head_cy, head_r, stroke=0, fill=1)
+
+    shoulder_base_y = icon_bottom + icon_h * 0.06
+    shoulder_bulge = icon_h * 0.34
+    shoulder_w = w * 0.74 * icon_scale
+    c.wedge(
+        cx - shoulder_w / 2,
+        shoulder_base_y - shoulder_bulge,
+        cx + shoulder_w / 2,
+        shoulder_base_y + shoulder_bulge,
+        0,
+        180,
+        stroke=0,
+        fill=1,
+    )
+
+    c.setFillColor(colors.grey)
+    c.setFont(BODY_BOLD, 7)
+    c.drawCentredString(cx, y + 4, "PHOTO")
+
+    c.setFillColor(colors.black)
+    c.restoreState()
+
+
 def _draw_signature_placeholder(c: canvas.Canvas, cx: float, cy: float, radius: float, signature_path: str | None):
     if signature_path and os.path.isfile(signature_path):
         c.drawImage(
@@ -100,14 +294,8 @@ def _draw_signature_placeholder(c: canvas.Canvas, cx: float, cy: float, radius: 
             mask="auto",
         )
         return
-    c.setLineWidth(1)
-    c.setStrokeColor(colors.grey)
-    c.circle(cx, cy, radius)
-    c.setFont(BODY, 6)
-    c.setFillColor(colors.grey)
-    c.drawCentredString(cx, cy - 3, "SIGN")
-    c.setFillColor(colors.black)
-    c.setStrokeColor(colors.black)
+    _draw_official_stamp(c, cx, cy, radius)
+    _draw_text(c, "Official Examination Stamp", BODY, 7, cx + radius + 10, cy - 2, align="left", color=CAPTION_GREY)
 
 
 def _cell_flowable(text: str, font_name: str, font_size: float):
@@ -118,7 +306,7 @@ def _cell_flowable(text: str, font_name: str, font_size: float):
 
 
 def _label_value_table(rows: list[tuple[str, str]], width: float) -> Table:
-    data = [[_cell_flowable(label, BODY_BOLD, 9), _cell_flowable(value, BODY, 9)] for label, value in rows]
+    data = [[_cell_flowable(label, BODY_BOLD, 11), _cell_flowable(value, BODY_BOLD, 11)] for label, value in rows]
     t = Table(data, colWidths=[width * 0.32, width * 0.68])
     t.setStyle(
         TableStyle(
@@ -126,8 +314,8 @@ def _label_value_table(rows: list[tuple[str, str]], width: float) -> Table:
                 ("GRID", (0, 0), (-1, -1), 0.75, colors.black),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                ("TOPPADDING", (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
             ]
         )
     )
@@ -184,27 +372,37 @@ def generate_hall_ticket_page(
 
     y = PAGE_H - MARGIN - 12
 
-    logo_size = 56
+    logo_size = 102
     _draw_logo_placeholder(c, MARGIN, y - logo_size + 12, logo_size, config.logo_path)
 
-    qr_size = 70
+    qr_size = 102
     qr_x = PAGE_W - MARGIN - qr_size
     qr_img = ImageReader(render_qr_png(qr_token))
     c.drawImage(qr_img, qr_x, y - qr_size + 12, width=qr_size, height=qr_size)
 
     text_x = MARGIN + logo_size + 14
     text_w = qr_x - text_x - 10
-    _draw_text(c, config.org_name, BODY_BOLD, 14, text_x + text_w / 2, y - 8, align="center")
+    text_cx = text_x + text_w / 2
+    header_y = y - 12
+    _draw_text(c, config.org_name, BODY_BOLD, 22, text_cx, header_y, align="center", color=BRAND_BLUE)
+    header_y -= 21
     if config.org_tagline:
-        _draw_text(c, config.org_tagline, BODY, 9, text_x + text_w / 2, y - 22, align="center")
+        _draw_text(c, config.org_tagline, BODY_BOLD, 14.5, text_cx, header_y, align="center", color=BRAND_GREEN)
+        header_y -= 17
+    if config.org_address:
+        _draw_wrapped_center(c, config.org_address, BODY_BOLD, 9.8, text_cx, header_y, text_w, color=ADDRESS_GREY, line_gap=12)
 
     y -= logo_size + 20
 
-    bar_h = 28
-    c.setLineWidth(1.5)
-    c.rect(MARGIN + content_w / 2 - 140, y - bar_h, 280, bar_h)
-    c.setFont(BODY_BOLD, 15)
-    c.drawCentredString(PAGE_W / 2, y - bar_h + 9, "ADMIT CARD")
+    bar_w, bar_h = 300, 32
+    bar_x = PAGE_W / 2 - bar_w / 2
+    c.setLineWidth(1.4)
+    c.roundRect(bar_x, y - bar_h, bar_w, bar_h, 5, stroke=1, fill=0)
+    c.setLineWidth(0.6)
+    c.roundRect(bar_x + 3, y - bar_h + 3, bar_w - 6, bar_h - 6, 3, stroke=1, fill=0)
+    c.setFont(BODY_BOLD, 14)
+    spaced_title = " ".join("ADMIT") + "    " + " ".join("CARD")
+    c.drawCentredString(PAGE_W / 2, y - bar_h / 2 - 4, spaced_title)
     y -= bar_h + 16
 
     _draw_text(c, config.exam_title, BODY_BOLD, 11, PAGE_W / 2, y, align="center")
@@ -213,6 +411,10 @@ def generate_hall_ticket_page(
     c.setFont(BODY_BOLD, 11)
     c.drawString(MARGIN, y, "CANDIDATE DETAILS")
     y -= 8
+
+    photo_w = 92
+    photo_gap = 12
+    table_w = content_w - photo_w - photo_gap
 
     details_table = _label_value_table(
         [
@@ -223,10 +425,11 @@ def generate_hall_ticket_page(
             ("Exam Name:", config.exam_title),
             ("Exam Centre:", exam_center_name),
         ],
-        content_w,
+        table_w,
     )
-    tw, th = details_table.wrap(content_w, 300)
+    tw, th = details_table.wrap(table_w, 300)
     details_table.drawOn(c, MARGIN, y - th)
+    _draw_photo_placeholder(c, MARGIN + table_w + photo_gap, y - th, photo_w, th)
     y -= th + 20
 
     if config.timetable:
@@ -273,7 +476,7 @@ def generate_hall_ticket_pdf(
     if config.rules_page_pdf_path and os.path.isfile(config.rules_page_pdf_path):
         rules_reader = PdfReader(config.rules_page_pdf_path)
     else:
-        rules_reader = PdfReader(build_rules_page_pdf(config))
+        rules_reader = PdfReader(BytesIO(_get_rules_page_bytes(config)))
     for page in rules_reader.pages:
         writer.add_page(page)
 

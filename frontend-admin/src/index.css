@@ -50,8 +50,7 @@ button {
   font-weight: 600;
 }
 
-input,
-select {
+input {
   padding: 9px 10px;
   border: 1px solid #d0d5dd;
   border-radius: 6px;
@@ -60,6 +59,43 @@ select {
 
 select {
   width: 100%;
+  padding: 9px 34px 9px 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #1a1a1a;
+  background-color: #fff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23667085' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 16px 16px;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+select:hover:not(:disabled) {
+  border-color: #94a3b8;
+}
+
+select:focus-visible {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: #f8fafc;
+}
+
+select::-ms-expand {
+  display: none;
 }
 
 button {
@@ -414,7 +450,7 @@ button:disabled {
 .toast-stack {
   position: fixed;
   left: 50%;
-  bottom: 24px;
+  top: 24px;
   transform: translateX(-50%);
   z-index: 200;
   display: flex;
@@ -443,7 +479,7 @@ button:disabled {
 
 @keyframes toast-in {
   from {
-    transform: translateY(12px);
+    transform: translateY(-12px);
     opacity: 0;
   }
   to {
@@ -754,6 +790,11 @@ th {
 
   .center-select-label {
     max-width: none;
+  }
+
+  /* 16px prevents iOS Safari from auto-zooming the page when a select gains focus */
+  select {
+    font-size: 16px;
   }
 
   .stat-card-number {
