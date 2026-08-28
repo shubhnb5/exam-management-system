@@ -1,4 +1,4 @@
--- ExamFlow database schema (PostgreSQL)
+-- Combine Mentor database schema (PostgreSQL)
 -- Generated from backend/app/models.py and backend/alembic/versions/5afe184335ba_initial_schema.py
 -- Reflects the state as of migration 5afe184335ba ("initial schema").
 

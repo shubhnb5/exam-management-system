@@ -43,7 +43,7 @@ export default function Login() {
   return (
     <div className="centered-page">
       <form className="card login-card" onSubmit={handleSubmit}>
-        <h1>Examflow Admin</h1>
+        <h1>Combine Mentor Admin</h1>
         <label>
           Username
           <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus required />

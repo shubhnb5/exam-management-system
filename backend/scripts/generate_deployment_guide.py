@@ -21,7 +21,7 @@ from reportlab.platypus import (
 
 from app.services.fonts import BODY, BODY_BOLD, ensure_fonts_registered
 
-OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "Examflow_Deployment_Guide.pdf")
+OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "Combine_Mentor_Deployment_Guide.pdf")
 
 BLUE = colors.HexColor("#2563eb")
 DARK = colors.HexColor("#111827")
@@ -40,7 +40,7 @@ def build():
         rightMargin=2.2 * cm,
         topMargin=1.8 * cm,
         bottomMargin=1.8 * cm,
-        title="Examflow Deployment Guide",
+        title="Combine Mentor Deployment Guide",
     )
 
     title_style = ParagraphStyle("title", fontName=BODY_BOLD, fontSize=26, textColor=DARK, spaceAfter=6)
@@ -69,7 +69,7 @@ def build():
     # ---------- Cover ----------
     story.append(Spacer(1, 3 * cm))
     brand_style = ParagraphStyle("brand", fontName=BODY_BOLD, fontSize=40, leading=48, textColor=BLUE, spaceAfter=14)
-    story.append(Paragraph("Examflow", brand_style))
+    story.append(Paragraph("Combine Mentor", brand_style))
     story.append(Spacer(1, 4))
     title_style.leading = 32
     story.append(Paragraph("Deployment Guide", title_style))
@@ -647,7 +647,7 @@ def build():
     story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#e2e8f0")))
     story.append(Spacer(1, 0.3 * cm))
     story.append(Paragraph(
-        "Generated for the Examflow project — Combine Mentor Official.",
+        "Generated for Combine Mentor Official.",
         ParagraphStyle("footer", fontName=BODY, fontSize=9, textColor=GREY),
     ))
 

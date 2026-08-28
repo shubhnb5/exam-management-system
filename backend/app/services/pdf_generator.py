@@ -6,6 +6,7 @@ from io import BytesIO
 
 from pypdf import PdfReader, PdfWriter
 from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.utils import ImageReader
@@ -37,6 +38,8 @@ class TicketConfig:
     subject_code: str = ""
     signatory_title: str = "Head of Examination"
     signatory_name: str | None = None
+    signatory_signature_path: str | None = None
+    signatory_org_line: str | None = None
     website: str | None = None
     telegram_handle: str | None = None
     org_address: str | None = None
@@ -48,7 +51,7 @@ class TicketConfig:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
         base_dir = os.path.dirname(os.path.abspath(path))
-        for key in ("logo_path", "signature_path", "rules_page_pdf_path"):
+        for key in ("logo_path", "signature_path", "signatory_signature_path", "rules_page_pdf_path"):
             value = data.get(key)
             if value and not os.path.isabs(value):
                 data[key] = os.path.join(base_dir, value)
@@ -205,8 +208,8 @@ def _draw_official_stamp(c: canvas.Canvas, cx: float, cy: float, radius: float):
     c.line(cx + radius - 11, cy, cx + radius - 5, cy)
 
     c.setFillColor(STAMP_COLOR)
-    c.setFont(BODY_BOLD, radius * 0.5)
-    c.drawCentredString(cx, cy - radius * 0.18, "CM")
+    c.setFont(BODY_BOLD, radius * 0.38)
+    c.drawCentredString(cx, cy - radius * 0.14, "CMO")
 
     c.setStrokeColor(colors.black)
     c.setFillColor(colors.black)
@@ -298,11 +301,15 @@ def _draw_signature_placeholder(c: canvas.Canvas, cx: float, cy: float, radius: 
     _draw_text(c, "Official Examination Stamp", BODY, 7, cx + radius + 10, cy - 2, align="left", color=CAPTION_GREY)
 
 
-def _cell_flowable(text: str, font_name: str, font_size: float):
+def _cell_flowable(text: str, font_name: str, font_size: float, align: str = "LEFT"):
     text = str(text)
     if contains_devanagari(text):
         return ShapedTextFlowable(text, FONT_PATHS[font_name], font_size)
-    return Paragraph(text, ParagraphStyle(f"cell-{font_name}-{font_size}", fontName=font_name, fontSize=font_size))
+    alignment = TA_CENTER if align == "CENTER" else TA_LEFT
+    return Paragraph(
+        text,
+        ParagraphStyle(f"cell-{font_name}-{font_size}-{align}", fontName=font_name, fontSize=font_size, alignment=alignment),
+    )
 
 
 def _label_value_table(rows: list[tuple[str, str]], width: float) -> Table:
@@ -312,6 +319,27 @@ def _label_value_table(rows: list[tuple[str, str]], width: float) -> Table:
         TableStyle(
             [
                 ("GRID", (0, 0), (-1, -1), 0.75, colors.black),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
+    )
+    return t
+
+
+def _exam_details_table(seat_no: str, exam_center_name: str, width: float) -> Table:
+    data = [
+        [_cell_flowable("Exam Seat No", BODY_BOLD, 9.5, align="CENTER"), _cell_flowable("Exam Centre", BODY_BOLD, 9.5, align="CENTER")],
+        [_cell_flowable(seat_no, BODY_BOLD, 11, align="CENTER"), _cell_flowable(exam_center_name, BODY_BOLD, 11, align="CENTER")],
+    ]
+    t = Table(data, colWidths=[width * 0.28, width * 0.72])
+    t.setStyle(
+        TableStyle(
+            [
+                ("GRID", (0, 0), (-1, -1), 0.75, colors.black),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.whitesmoke),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 6),
                 ("TOPPADDING", (0, 0), (-1, -1), 6),
@@ -394,6 +422,9 @@ def generate_hall_ticket_page(
 
     y -= logo_size + 20
 
+    c.setLineWidth(1)
+    c.line(MARGIN, y + 10, PAGE_W - MARGIN, y + 10)
+
     bar_w, bar_h = 300, 32
     bar_x = PAGE_W / 2 - bar_w / 2
     c.setLineWidth(1.4)
@@ -423,13 +454,21 @@ def generate_hall_ticket_page(
             ("Roll No:", _roll_no(mobile_number)),
             ("Subject Code:", config.subject_code),
             ("Exam Name:", config.exam_title),
-            ("Exam Centre:", exam_center_name),
         ],
         table_w,
     )
     tw, th = details_table.wrap(table_w, 300)
     details_table.drawOn(c, MARGIN, y - th)
     _draw_photo_placeholder(c, MARGIN + table_w + photo_gap, y - th, photo_w, th)
+    y -= th + 20
+
+    c.setFont(BODY_BOLD, 11)
+    c.drawString(MARGIN, y, "EXAMINATION DETAILS")
+    y -= 8
+
+    exam_details_table = _exam_details_table(_roll_no(mobile_number), exam_center_name, content_w)
+    tw, th = exam_details_table.wrap(content_w, 200)
+    exam_details_table.drawOn(c, MARGIN, y - th)
     y -= th + 20
 
     if config.timetable:
@@ -445,13 +484,36 @@ def generate_hall_ticket_page(
     _draw_signature_placeholder(c, MARGIN + 30, footer_y + 10, 28, config.signature_path)
 
     line_y = footer_y + 40
-    c.line(PAGE_W - MARGIN - 160, line_y, PAGE_W - MARGIN, line_y)
+    line_left = PAGE_W - MARGIN - 160
+    line_right = PAGE_W - MARGIN
+
+    if config.signatory_signature_path and os.path.isfile(config.signatory_signature_path):
+        sig_img = ImageReader(config.signatory_signature_path)
+        native_w, native_h = sig_img.getSize()
+        sig_h = min(32, native_h * 110 / native_w)
+        sig_w = sig_h * native_w / native_h
+        c.drawImage(
+            sig_img,
+            (line_left + line_right) / 2 - sig_w / 2,
+            line_y + 3,
+            width=sig_w,
+            height=sig_h,
+            preserveAspectRatio=True,
+            mask="auto",
+        )
+
+    c.line(line_left, line_y, line_right, line_y)
     text_y = line_y - 12
     if config.signatory_name:
         _draw_text(c, config.signatory_name, BODY_BOLD, 9, PAGE_W - MARGIN, text_y, align="right")
         text_y -= 11
     title_font, title_size = (BODY_BOLD, 9) if not config.signatory_name else (BODY, 8)
     _draw_text(c, config.signatory_title, title_font, title_size, PAGE_W - MARGIN, text_y, align="right")
+    if config.signatory_org_line:
+        text_y -= 10
+        _draw_text(
+            c, config.signatory_org_line, BODY, 7.5, PAGE_W - MARGIN, text_y, align="right", color=ADDRESS_GREY
+        )
 
 
 def generate_hall_ticket_pdf(

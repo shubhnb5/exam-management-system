@@ -48,7 +48,7 @@ export default function ExcelUpload({ centers, onUploaded }) {
   }
 
   return (
-    <CollapsibleCard title="Upload Student Excel Sheet">
+    <CollapsibleCard title="Upload Student Excel Sheet" accent="#0891b2" icon="📤">
       <p className="muted">
         Accepts .xlsx, .xlsm, .csv, .pdf, or .docx (a table with the same columns). Columns expected: Student Name,
         Email, Mobile Number. Every student in this sheet is assigned to the exam center selected below — upload one

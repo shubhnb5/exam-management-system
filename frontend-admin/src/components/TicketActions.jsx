@@ -116,7 +116,7 @@ export default function TicketActions({ onDone }) {
   }
 
   return (
-    <CollapsibleCard title="Generate & Send">
+    <CollapsibleCard title="Generate & Send" accent="#16a34a" icon="🎫">
       <p className="muted">
         With hundreds of students this can take a while — it runs in the background, so it's safe to leave this page
         and come back; the status here will pick back up.
