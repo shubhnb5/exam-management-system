@@ -28,7 +28,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    env_file: .env
+    env_file: .env.example
     environment:
       DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-examflow}:${POSTGRES_PASSWORD:-examflow}@db:5432/${POSTGRES_DB:-examflow}
     volumes:
