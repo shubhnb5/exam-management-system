@@ -1,11 +1,16 @@
 from io import BytesIO
 
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
-from reportlab.platypus import ListFlowable, ListItem, Paragraph, SimpleDocTemplate, Spacer
+from reportlab.platypus import ListFlowable, ListItem, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from app.services.devanagari_shaping import ShapedParagraphFlowable, contains_devanagari
 from app.services.fonts import BODY, BODY_BOLD, FONT_PATHS, ensure_fonts_registered
+
+ORG_BLUE = colors.Color(0.06, 0.22, 0.60)
+DEPT_GREY = colors.Color(0.35, 0.35, 0.35)
 
 MARGIN = 36
 
@@ -19,7 +24,7 @@ RULE_ITEMS = [
 ]
 
 
-def _flowable(text: str, font_name: str, font_size: float, leading: float | None = None):
+def _flowable(text: str, font_name: str, font_size: float, leading: float | None = None, color=None):
     """Paragraph, or a HarfBuzz-shaped+word-wrapped equivalent when the text
     contains Devanagari — reportlab's own Paragraph can't shape Indic
     conjuncts (see devanagari_shaping.py), so plain Paragraph is only safe for
@@ -30,7 +35,9 @@ def _flowable(text: str, font_name: str, font_size: float, leading: float | None
     style_kwargs = {"fontName": font_name, "fontSize": font_size}
     if leading is not None:
         style_kwargs["leading"] = leading
-    return Paragraph(text, ParagraphStyle(f"flow-{font_name}-{font_size}", **style_kwargs))
+    if color is not None:
+        style_kwargs["textColor"] = color
+    return Paragraph(text, ParagraphStyle(f"flow-{font_name}-{font_size}-{color}", **style_kwargs))
 
 
 def build_rules_page_pdf(config) -> BytesIO:
@@ -45,9 +52,24 @@ def build_rules_page_pdf(config) -> BytesIO:
         bottomMargin=MARGIN,
     )
 
-    story = [
-        Paragraph("RULES &amp; REGULATIONS", ParagraphStyle("h1", fontName=BODY_BOLD, fontSize=16, spaceAfter=10)),
-    ]
+    heading_w = A4[0] - 2 * MARGIN
+    heading_table = Table(
+        [[Paragraph("RULES &amp; REGULATIONS", ParagraphStyle("h1box", fontName=BODY_BOLD, fontSize=16, alignment=TA_CENTER))]],
+        colWidths=[heading_w],
+    )
+    heading_table.setStyle(
+        TableStyle(
+            [
+                ("BOX", (0, 0), (-1, -1), 1.3, colors.black),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING", (0, 0), (-1, -1), 9),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
+            ]
+        )
+    )
+
+    story = [heading_table, Spacer(1, 16)]
 
     numbered = [ListItem(_flowable(text, BODY, 9.5, leading=14), spaceAfter=8) for text in RULE_ITEMS]
 
@@ -60,10 +82,12 @@ def build_rules_page_pdf(config) -> BytesIO:
         )
     )
 
-    story.append(Spacer(1, 16))
-    story.append(_flowable("Best wishes for your examination!", BODY, 9.5, leading=14))
-    story.append(_flowable(config.org_name, BODY_BOLD, 10))
-    story.append(_flowable("Test Series Department", BODY, 9))
+    story.append(Spacer(1, 20))
+    story.append(_flowable("Best wishes for your examination!", BODY_BOLD, 12, leading=16))
+    story.append(Spacer(1, 8))
+    story.append(_flowable(config.org_name, BODY_BOLD, 14, leading=17, color=ORG_BLUE))
+    story.append(Spacer(1, 4))
+    story.append(_flowable("Test Series Department", BODY, 10.5, leading=13, color=DEPT_GREY))
 
     doc.build(story)
     buf.seek(0)

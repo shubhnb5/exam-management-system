@@ -1,6 +1,6 @@
 {
-  "name": "Examflow Scanner",
-  "short_name": "Examflow",
+  "name": "Combine Mentor Scanner",
+  "short_name": "Combine Mentor",
   "start_url": "login",
   "scope": "./",
   "display": "standalone",

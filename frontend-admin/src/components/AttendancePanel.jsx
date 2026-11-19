@@ -48,7 +48,7 @@ export default function AttendancePanel() {
   );
 
   return (
-    <CollapsibleCard title="Attendance">
+    <CollapsibleCard title="Attendance" accent="#7c3aed" icon="🗓️">
       <div className="inline-form">
         <label className="field-label">
           Date
@@ -89,6 +89,14 @@ export default function AttendancePanel() {
                 </tr>
               </thead>
               <tbody>
+                {pageItems.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="empty-state">
+                      <div className="empty-state-icon">📋</div>
+                      {q ? "No students match your search." : "No students found for this date/filter."}
+                    </td>
+                  </tr>
+                )}
                 {pageItems.map((r) => (
                   <tr key={r.student_id}>
                     <td>{r.full_name}</td>

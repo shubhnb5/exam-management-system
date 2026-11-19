@@ -93,6 +93,8 @@ export default function StudentsTable({ students, centers, onChanged }) {
   return (
     <CollapsibleCard
       title={`Students (${students.length})`}
+      accent="#ea580c"
+      icon="🎓"
       headerExtra={
         <button
           type="button"
@@ -133,6 +135,14 @@ export default function StudentsTable({ students, centers, onChanged }) {
             </tr>
           </thead>
           <tbody>
+            {pageItems.length === 0 && (
+              <tr>
+                <td colSpan={7} className="empty-state">
+                  <div className="empty-state-icon">🔍</div>
+                  {q ? "No students match your search." : "No students yet — upload a sheet to get started."}
+                </td>
+              </tr>
+            )}
             {pageItems.map((s) => {
               const status = STATUS_LABEL[s.email_status] || { text: "Not sent", cls: "badge-grey" };
               return (
