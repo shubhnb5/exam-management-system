@@ -48,12 +48,12 @@ export default function Dashboard() {
   const sections = useMemo(
     () =>
       [
-        { id: "live", label: "Live Attendance", show: true },
-        { id: "attendance", label: "Attendance", show: true },
-        { id: "upload", label: "Upload Students", show: hasCenters },
-        { id: "generate", label: "Generate & Send", show: true },
-        { id: "students", label: "Students", show: hasCenters },
-        { id: "teachers", label: "Teachers", show: hasCenters },
+        { id: "live", label: "Live Attendance", icon: "📡", show: true },
+        { id: "attendance", label: "Attendance", icon: "🗓️", show: true },
+        { id: "upload", label: "Upload Students", icon: "📤", show: hasCenters },
+        { id: "generate", label: "Generate & Send", icon: "🎫", show: true },
+        { id: "students", label: "Students", icon: "🎓", show: hasCenters },
+        { id: "teachers", label: "Teachers", icon: "🧑‍🏫", show: hasCenters },
       ].filter((s) => s.show),
     [hasCenters]
   );
@@ -98,7 +98,7 @@ export default function Dashboard() {
             >
               ☰
             </button>
-            <h1>{activeLabel || "Examflow Admin"}</h1>
+            <h1>{activeLabel || "Combine Mentor Admin"}</h1>
           </div>
         </header>
 

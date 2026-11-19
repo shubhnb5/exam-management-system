@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     smtp_port: int = 587
     smtp_username: str = ""
     smtp_app_password: str = ""
-    smtp_from_name: str = "Examflow"
+    smtp_from_name: str = "Combine Mentor"
 
     ticket_storage_dir: str = "./storage/tickets"
 

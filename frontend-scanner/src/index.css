@@ -21,6 +21,17 @@ body {
   align-items: center;
   justify-content: center;
   padding: 20px;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(37, 99, 235, 0.25), transparent 45%),
+    radial-gradient(circle at 80% 80%, rgba(124, 58, 237, 0.2), transparent 45%),
+    #0f172a;
+}
+
+.login-card h1 {
+  background: linear-gradient(135deg, #60a5fa, #a78bfa);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .login-card {
@@ -29,6 +40,11 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 16px;
+  padding: 28px 24px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
 }
 
 .login-card h1 {
@@ -48,8 +64,15 @@ input {
   border: 1px solid #334155;
   border-radius: 8px;
   font-size: 18px;
-  background: #1e293b;
+  background: #0f172a;
   color: white;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+input:focus-visible {
+  outline: none;
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.25);
 }
 
 button {
@@ -61,6 +84,26 @@ button {
   font-weight: 700;
   font-size: 18px;
   cursor: pointer;
+  transition: filter 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+}
+
+button:hover:not(:disabled) {
+  filter: brightness(1.08);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 2px;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .btn-small {
@@ -105,6 +148,9 @@ button {
   font-size: 16px;
   font-weight: 600;
   background: #1e293b;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  position: relative;
+  z-index: 1;
 }
 
 .qr-reader {

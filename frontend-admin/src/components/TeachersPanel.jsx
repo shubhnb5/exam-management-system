@@ -109,7 +109,7 @@ export default function TeachersPanel({ teachers, centers, onChanged }) {
   }
 
   return (
-    <CollapsibleCard title="Teacher Devices / Accounts">
+    <CollapsibleCard title="Teacher Devices / Accounts" accent="#db2777" icon="🧑‍🏫">
       <SearchBar value={search} onChange={setSearch} placeholder="Search by username, name, or center..." />
       {tableError && <div className="error-banner">{tableError}</div>}
       <div className="table-scroll">
@@ -124,6 +124,14 @@ export default function TeachersPanel({ teachers, centers, onChanged }) {
             </tr>
           </thead>
           <tbody>
+            {pageItems.length === 0 && (
+              <tr>
+                <td colSpan={5} className="empty-state">
+                  <div className="empty-state-icon">🧑‍🏫</div>
+                  {q ? "No teachers match your search." : "No teacher accounts yet — add one below."}
+                </td>
+              </tr>
+            )}
             {pageItems.map((t) => (
               <tr key={t.id}>
                 <td>{t.username}</td>

@@ -46,7 +46,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Examflow API", lifespan=lifespan)
+app = FastAPI(title="Combine Mentor API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
