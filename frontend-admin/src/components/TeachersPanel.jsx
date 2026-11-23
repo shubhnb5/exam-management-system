@@ -1,6 +1,7 @@
 import { useState } from "react";
 import api from "../api";
 import CollapsibleCard from "./CollapsibleCard";
+import Icon from "./Icon";
 import Pagination from "./Pagination";
 import SearchBar from "./SearchBar";
 import usePagination from "../hooks/usePagination";
@@ -109,11 +110,20 @@ export default function TeachersPanel({ teachers, centers, onChanged }) {
   }
 
   return (
-    <CollapsibleCard title="Teacher Devices / Accounts" accent="#db2777" icon="🧑‍🏫">
+    <CollapsibleCard
+      title="Teacher Devices / Accounts"
+      icon="teachers"
+      description="One login per teacher device at the gate. Revoke a lost device instantly; scan history is kept."
+    >
       <SearchBar value={search} onChange={setSearch} placeholder="Search by username, name, or center..." />
-      {tableError && <div className="error-banner">{tableError}</div>}
+      {tableError && (
+        <div className="error-banner" role="alert">
+          <Icon name="alert" size={18} />
+          <span>{tableError}</span>
+        </div>
+      )}
       <div className="table-scroll">
-        <table>
+        <table className="data-table">
           <thead>
             <tr>
               <th>Username</th>
@@ -127,30 +137,39 @@ export default function TeachersPanel({ teachers, centers, onChanged }) {
             {pageItems.length === 0 && (
               <tr>
                 <td colSpan={5} className="empty-state">
-                  <div className="empty-state-icon">🧑‍🏫</div>
+                  <div className="empty-state-icon">
+                    <Icon name={q ? "search" : "teachers"} size={24} />
+                  </div>
                   {q ? "No teachers match your search." : "No teacher accounts yet — add one below."}
                 </td>
               </tr>
             )}
             {pageItems.map((t) => (
               <tr key={t.id}>
-                <td>{t.username}</td>
-                <td>{t.full_name}</td>
-                <td>{centerName(t.exam_center_id)}</td>
-                <td>
+                <td className="cell-primary cell-mono-primary" data-label="Username">
+                  {t.username}
+                </td>
+                <td data-label="Full Name">{t.full_name}</td>
+                <td className="cell-wrap" data-label="Center">
+                  {centerName(t.exam_center_id)}
+                </td>
+                <td data-label="Status">
                   <span className={`badge ${t.is_active ? "badge-green" : "badge-red"}`}>
                     {t.is_active ? "Active" : "Revoked"}
                   </span>
                 </td>
-                <td>
+                <td className="cell-actions" data-label="Action">
                   <div className="row-actions">
                     <button className="btn-small" onClick={() => toggleActive(t)}>
+                      <Icon name={t.is_active ? "ban" : "checkCircle"} size={16} />
                       {t.is_active ? "Revoke" : "Reactivate"}
                     </button>
                     <button className="btn-small" onClick={() => resetPassword(t)}>
+                      <Icon name="key" size={16} />
                       Reset password
                     </button>
                     <button className="btn-small btn-danger" onClick={() => deleteTeacher(t)}>
+                      <Icon name="trash" size={16} />
                       Delete
                     </button>
                   </div>
@@ -162,39 +181,66 @@ export default function TeachersPanel({ teachers, centers, onChanged }) {
       </div>
       <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onChange={setPage} />
 
-      <h3>Add Teacher</h3>
-      <form className="inline-form" onSubmit={createTeacher}>
-        <input
-          placeholder="Username"
-          value={form.username}
-          onChange={(e) => setForm({ ...form, username: e.target.value })}
-          required
-        />
-        <input
-          placeholder="Full name"
-          value={form.full_name}
-          onChange={(e) => setForm({ ...form, full_name: e.target.value })}
-          required
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={form.password}
-          onChange={(e) => setForm({ ...form, password: e.target.value })}
-          required
-        />
-        <select value={form.exam_center_id} onChange={(e) => setForm({ ...form, exam_center_id: e.target.value })}>
-          {centers.map((c) => (
-            <option key={c.id} value={c.id} title={c.name}>
-              {truncate(c.name)}
-            </option>
-          ))}
-        </select>
-        <button type="submit" disabled={busy}>
-          {busy ? "Adding..." : "Add"}
-        </button>
-      </form>
-      {error && <div className="error-banner">{error}</div>}
+      <div className="subsection">
+        <h3>
+          <span className="card-icon card-icon-sm" aria-hidden="true">
+            <Icon name="plus" size={17} />
+          </span>
+          Add Teacher
+        </h3>
+        <form className="inline-form" onSubmit={createTeacher}>
+          <label className="field-label">
+            Username
+            <input
+              placeholder="Username"
+              value={form.username}
+              onChange={(e) => setForm({ ...form, username: e.target.value })}
+              required
+              autoComplete="off"
+            />
+          </label>
+          <label className="field-label">
+            Full name
+            <input
+              placeholder="Full name"
+              value={form.full_name}
+              onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+              required
+            />
+          </label>
+          <label className="field-label">
+            Password
+            <input
+              type="password"
+              placeholder="Password"
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              required
+              autoComplete="new-password"
+            />
+          </label>
+          <label className="field-label">
+            Exam center
+            <select value={form.exam_center_id} onChange={(e) => setForm({ ...form, exam_center_id: e.target.value })}>
+              {centers.map((c) => (
+                <option key={c.id} value={c.id} title={c.name}>
+                  {truncate(c.name)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="submit" disabled={busy}>
+            <Icon name="plus" size={18} />
+            {busy ? "Adding..." : "Add"}
+          </button>
+        </form>
+        {error && (
+          <div className="error-banner" role="alert">
+            <Icon name="alert" size={18} />
+            <span>{error}</span>
+          </div>
+        )}
+      </div>
     </CollapsibleCard>
   );
 }
