@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import api from "../api";
 import CollapsibleCard from "./CollapsibleCard";
+import Icon from "./Icon";
 import Pagination from "./Pagination";
 import SearchBar from "./SearchBar";
 import Spinner from "./Spinner";
@@ -48,8 +49,12 @@ export default function AttendancePanel() {
   );
 
   return (
-    <CollapsibleCard title="Attendance" accent="#7c3aed" icon="🗓️">
-      <div className="inline-form">
+    <CollapsibleCard
+      title="Attendance"
+      icon="calendar"
+      description="Who was present or absent on any exam date, and which teacher checked them in."
+    >
+      <div className="toolbar">
         <label className="field-label">
           Date
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
@@ -62,22 +67,30 @@ export default function AttendancePanel() {
             <option value="absent">Absent only</option>
           </select>
         </label>
+        <SearchBar value={search} onChange={setSearch} placeholder="Search by name, email, or center..." />
       </div>
-
-      <SearchBar value={search} onChange={setSearch} placeholder="Search by name, email, or center..." />
 
       {loading && <Spinner />}
 
       {data && (
         <>
-          <div className="stat-row">
-            <span className="badge badge-green">{presentCount} present</span>
-            <span className="badge badge-red">{rows.length - presentCount} absent</span>
-            <span className="badge badge-grey">{rows.length} total</span>
+          <div className="summary-tiles">
+            <div className="summary-tile summary-tile-present">
+              <span className="summary-tile-value mono">{presentCount}</span>
+              <span className="summary-tile-label">present</span>
+            </div>
+            <div className="summary-tile summary-tile-absent">
+              <span className="summary-tile-value mono">{rows.length - presentCount}</span>
+              <span className="summary-tile-label">absent</span>
+            </div>
+            <div className="summary-tile summary-tile-total">
+              <span className="summary-tile-value mono">{rows.length}</span>
+              <span className="summary-tile-label">total</span>
+            </div>
           </div>
 
           <div className="table-scroll">
-            <table>
+            <table className="data-table">
               <thead>
                 <tr>
                   <th>Name</th>
@@ -92,23 +105,29 @@ export default function AttendancePanel() {
                 {pageItems.length === 0 && (
                   <tr>
                     <td colSpan={6} className="empty-state">
-                      <div className="empty-state-icon">📋</div>
+                      <div className="empty-state-icon">
+                        <Icon name="inbox" size={24} />
+                      </div>
                       {q ? "No students match your search." : "No students found for this date/filter."}
                     </td>
                   </tr>
                 )}
                 {pageItems.map((r) => (
                   <tr key={r.student_id}>
-                    <td>{r.full_name}</td>
-                    <td>{r.email}</td>
-                    <td>{r.exam_center_name}</td>
-                    <td>
+                    <td className="cell-primary" data-label="Name">
+                      {r.full_name}
+                    </td>
+                    <td data-label="Email">{r.email}</td>
+                    <td data-label="Center">{r.exam_center_name}</td>
+                    <td data-label="Status">
                       <span className={`badge ${r.present ? "badge-green" : "badge-red"}`}>
                         {r.present ? "Present" : "Absent"}
                       </span>
                     </td>
-                    <td>{r.scanned_at ? new Date(r.scanned_at).toLocaleTimeString() : "—"}</td>
-                    <td>{r.teacher_name || "—"}</td>
+                    <td className="cell-mono" data-label="Scanned At">
+                      {r.scanned_at ? new Date(r.scanned_at).toLocaleTimeString() : "—"}
+                    </td>
+                    <td data-label="Scanned By">{r.teacher_name || "—"}</td>
                   </tr>
                 ))}
               </tbody>

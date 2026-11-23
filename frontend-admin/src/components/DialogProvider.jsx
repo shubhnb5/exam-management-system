@@ -58,7 +58,7 @@ export function DialogProvider({ children }) {
             </button>
             <button
               type="button"
-              className={`btn-small ${state.danger ? "btn-danger" : ""}`}
+              className={`btn-small ${state.danger ? "btn-danger" : "btn-primary"}`}
               onClick={() => finish(state.kind === "prompt" ? inputValue.current : true)}
             >
               {state.confirmText || "Confirm"}

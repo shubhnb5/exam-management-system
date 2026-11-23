@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useRef, useState } from "react";
+import Icon from "./Icon";
 
 const ToastContext = createContext(null);
 let nextId = 1;
@@ -34,7 +35,10 @@ export function ToastProvider({ children }) {
             role="status"
             onClick={() => dismiss(t.id)}
           >
-            {t.message}
+            <span className="toast-icon" aria-hidden="true">
+              <Icon name={t.type === "error" ? "alert" : "check"} size={16} strokeWidth={2.2} />
+            </span>
+            <span className="toast-message">{t.message}</span>
           </div>
         ))}
       </div>

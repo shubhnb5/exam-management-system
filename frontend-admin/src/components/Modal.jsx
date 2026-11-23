@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 
-export default function Modal({ title, children, onClose }) {
+export default function Modal({ title, children, onClose, wide = false }) {
   useEffect(() => {
     function onKeyDown(e) {
       if (e.key === "Escape") onClose();
@@ -16,7 +16,7 @@ export default function Modal({ title, children, onClose }) {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="modal-card" role="dialog" aria-modal="true" aria-label={title}>
+      <div className={`modal-card ${wide ? "modal-card-wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
         {title && <div className="modal-title">{title}</div>}
         {children}
       </div>
