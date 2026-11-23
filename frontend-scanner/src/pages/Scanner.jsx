@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
+import BrandSeal from "../components/BrandSeal";
+import Icon from "../components/Icon";
 
 const READER_ID = "qr-reader";
 const AUTO_RESUME_MS = 3000;
@@ -100,6 +102,12 @@ export default function Scanner() {
         });
       } else if (err.response?.status === 404) {
         setResult({ kind: "error", message: "QR code not recognized." });
+      } else if (err.response?.status === 401) {
+        // Login expired (12h) or the admin revoked this device — not a network
+        // problem, so say so and send the teacher back to log in.
+        setResult({ kind: "error", message: "Your login has expired. Please log in again.", expired: true });
+        resumeTimerRef.current = setTimeout(logout, 2500);
+        return;
       } else {
         setResult({ kind: "error", message: "Network error — check connection and try again." });
       }
@@ -129,52 +137,100 @@ export default function Scanner() {
 
   return (
     <div className="scanner-page">
-      <header className="scanner-header">
-        <span>{fullName}</span>
+      <header className="scanner-header guilloche">
+        <div className="scanner-id">
+          <BrandSeal size={36} />
+          <div>
+            <div className="scanner-name">{fullName}</div>
+            <div className="scanner-status">
+              <span className="live-dot" aria-hidden="true" />
+              Gate Scanner
+            </div>
+          </div>
+        </div>
         <button className="btn-small btn-danger" onClick={logout}>
+          <Icon name="logout" size={17} />
           Log out
         </button>
       </header>
 
-      <div id={READER_ID} className="qr-reader" />
-
-      {cameraError && <div className="camera-error">{cameraError}</div>}
+      <div className="scanner-stage">
+        <div id={READER_ID} className="qr-reader" />
+        {!cameraError && (
+          <div className="scan-hint" aria-hidden="true">
+            <Icon name="qr" size={18} />
+            Point the camera at the admit card QR code
+          </div>
+        )}
+        {cameraError && (
+          <div className="camera-error" role="alert">
+            <Icon name="camera" size={44} />
+            {cameraError}
+          </div>
+        )}
+      </div>
 
       {result && (
-        <div className={`result-overlay result-${result.kind}`} onClick={resumeScanning}>
+        <div className={`result-overlay result-${result.kind}`} onClick={resumeScanning} role="alert">
           {result.kind === "success" && (
             <>
-              <div className="result-icon">&#10003;</div>
+              <div className="result-icon">
+                <Icon name="check" size={64} strokeWidth={2.6} />
+              </div>
+              <div className="result-eyebrow">Checked in</div>
               <div className="result-title">{result.studentName}</div>
-              <div className="result-sub">Checked in — {result.centerName}</div>
-              <div className="result-sub">{result.time}</div>
+              <div className="result-details">
+                <div className="result-sub">Checked in — {result.centerName}</div>
+                <div className="result-sub mono">{result.time}</div>
+              </div>
             </>
           )}
           {result.kind === "duplicate" && (
             <>
-              <div className="result-icon">&#10007;</div>
+              <div className="result-icon">
+                <Icon name="x" size={64} strokeWidth={2.6} />
+              </div>
+              <div className="result-eyebrow">ALREADY SCANNED TODAY</div>
               <div className="result-title">{result.studentName}</div>
-              <div className="result-sub">ALREADY SCANNED TODAY</div>
-              <div className="result-sub">
-                {result.center} — {result.teacher} — {result.time}
+              <div className="result-details">
+                <div className="result-sub">
+                  {result.center} — {result.teacher} — {result.time}
+                </div>
               </div>
             </>
           )}
           {result.kind === "wrong_center" && (
             <>
-              <div className="result-icon">&#10007;</div>
+              <div className="result-icon">
+                <Icon name="x" size={64} strokeWidth={2.6} />
+              </div>
+              <div className="result-eyebrow">WRONG EXAM CENTER</div>
               <div className="result-title">{result.studentName}</div>
-              <div className="result-sub">WRONG EXAM CENTER</div>
-              <div className="result-sub">Assigned to: {result.assignedCenter}</div>
+              <div className="result-details">
+                <div className="result-sub">Assigned to: {result.assignedCenter}</div>
+              </div>
             </>
           )}
           {result.kind === "error" && (
             <>
-              <div className="result-icon">!</div>
+              <div className="result-icon">
+                <Icon name="alert" size={58} strokeWidth={2.4} />
+              </div>
+              <div className="result-eyebrow">Not verified</div>
               <div className="result-title">{result.message}</div>
             </>
           )}
-          <div className="result-tap-hint">Tap anywhere to scan next</div>
+          <div className="result-footer">
+            <div className="result-timer" aria-hidden="true">
+              <span
+                key={`${result.kind}-${result.time || result.message}`}
+                style={{ animationDuration: `${result.expired ? 2500 : AUTO_RESUME_MS}ms` }}
+              />
+            </div>
+            <div className="result-tap-hint">
+              {result.expired ? "Taking you to the login page…" : "Tap anywhere to scan next"}
+            </div>
+          </div>
         </div>
       )}
     </div>

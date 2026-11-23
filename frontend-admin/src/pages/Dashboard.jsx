@@ -7,9 +7,18 @@ import StudentsTable from "../components/StudentsTable";
 import StatsPanel from "../components/StatsPanel";
 import TeachersPanel from "../components/TeachersPanel";
 import AttendancePanel from "../components/AttendancePanel";
+import StudentAccountsPanel from "../components/StudentAccountsPanel";
+import ExamCentersPanel from "../components/ExamCentersPanel";
 import Sidebar from "../components/Sidebar";
+import TabBar from "../components/TabBar";
 import Spinner from "../components/Spinner";
+import BrandSeal from "../components/BrandSeal";
+import Icon from "../components/Icon";
 import { useToast } from "../components/ToastProvider";
+
+function todayLabel() {
+  return new Date().toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
+}
 
 export default function Dashboard() {
   const { showToast } = useToast();
@@ -48,12 +57,15 @@ export default function Dashboard() {
   const sections = useMemo(
     () =>
       [
-        { id: "live", label: "Live Attendance", icon: "📡", show: true },
-        { id: "attendance", label: "Attendance", icon: "🗓️", show: true },
-        { id: "upload", label: "Upload Students", icon: "📤", show: hasCenters },
-        { id: "generate", label: "Generate & Send", icon: "🎫", show: true },
-        { id: "students", label: "Students", icon: "🎓", show: hasCenters },
-        { id: "teachers", label: "Teachers", icon: "🧑‍🏫", show: hasCenters },
+        { id: "live", label: "Live Attendance", short: "Live", icon: "live", show: true },
+        { id: "attendance", label: "Attendance", short: "Attendance", icon: "calendar", show: true },
+        // Always shown: it's also where new exam centers are added.
+        { id: "upload", label: "Upload Students", short: "Upload", icon: "upload", show: true },
+        { id: "centers", label: "Exam Centers", short: "Centers", icon: "building", show: true },
+        { id: "generate", label: "Generate Admit Cards", short: "Generate", icon: "ticket", show: true },
+        { id: "students", label: "Students", short: "Students", icon: "students", show: hasCenters },
+        { id: "accounts", label: "Student Accounts", short: "Accounts", icon: "idcard", show: true },
+        { id: "teachers", label: "Teachers", short: "Teachers", icon: "teachers", show: hasCenters },
       ].filter((s) => s.show),
     [hasCenters]
   );
@@ -71,17 +83,21 @@ export default function Dashboard() {
     navigate("/login");
   }
 
-  const activeLabel = sections.find((s) => s.id === active)?.label || "";
+  function selectSection(id) {
+    setActive(id);
+    setSidebarOpen(false);
+    window.scrollTo({ top: 0 });
+  }
+
+  const activeIndex = sections.findIndex((s) => s.id === active);
+  const activeLabel = sections[activeIndex]?.label || "";
 
   return (
     <div className="app-shell">
       <Sidebar
         sections={sections}
         active={active}
-        onSelect={(id) => {
-          setActive(id);
-          setSidebarOpen(false);
-        }}
+        onSelect={selectSection}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         onLogout={logout}
@@ -90,15 +106,23 @@ export default function Dashboard() {
       <div className="dashboard">
         <header className="dashboard-header">
           <div className="header-left">
-            <button
-              type="button"
-              className="btn-small btn-menu"
-              onClick={() => setSidebarOpen(true)}
-              aria-label="Open menu"
-            >
-              ☰
-            </button>
-            <h1>{activeLabel || "Combine Mentor Admin"}</h1>
+            <span className="header-seal">
+              <BrandSeal size={34} />
+            </span>
+            <div className="header-titles">
+              <span className="eyebrow">
+                {activeIndex >= 0
+                  ? `Section ${String(activeIndex + 1).padStart(2, "0")} / ${String(sections.length).padStart(2, "0")}`
+                  : "Admin Console"}
+              </span>
+              <h1>{activeLabel || "Combine Mentor Admin"}</h1>
+            </div>
+          </div>
+          <div className="header-right">
+            <span className="date-chip">
+              <Icon name="calendar" size={15} />
+              {todayLabel()}
+            </span>
           </div>
         </header>
 
@@ -106,21 +130,33 @@ export default function Dashboard() {
           {initialLoading ? (
             <Spinner label="Loading dashboard..." />
           ) : (
-            <>
+            <div className="section-stack" key={active}>
               {active === "live" && (stats ? <StatsPanel stats={stats} /> : <Spinner />)}
               {active === "attendance" && <AttendancePanel />}
-              {active === "upload" && hasCenters && <ExcelUpload centers={centers} onUploaded={refreshAll} />}
+              {active === "upload" && (
+                <ExcelUpload centers={centers} onUploaded={refreshAll} onCentersChanged={refreshAll} />
+              )}
+              {active === "centers" && <ExamCentersPanel onChanged={refreshAll} />}
               {active === "generate" && <TicketActions onDone={refreshAll} />}
               {active === "students" && hasCenters && (
                 <StudentsTable students={students} centers={centers} onChanged={refreshAll} />
               )}
+              {active === "accounts" && <StudentAccountsPanel />}
               {active === "teachers" && hasCenters && (
                 <TeachersPanel teachers={teachers} centers={centers} onChanged={refreshAll} />
               )}
-            </>
+            </div>
           )}
         </main>
       </div>
+
+      <TabBar
+        sections={sections}
+        active={active}
+        onSelect={selectSection}
+        onMore={() => setSidebarOpen((open) => !open)}
+        moreOpen={sidebarOpen}
+      />
     </div>
   );
 }

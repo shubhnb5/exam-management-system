@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
 import { APP_VERSION } from "../version";
+import BrandSeal from "../components/BrandSeal";
+import Icon from "../components/Icon";
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -38,20 +40,42 @@ export default function Login() {
   }
 
   return (
-    <div className="centered-page">
+    <div className="centered-page guilloche">
+      <div className="scanner-brand">
+        <BrandSeal size={64} />
+        <div>
+          <div className="scanner-brand-name">
+            Scanner
+          </div>
+          <div className="scanner-brand-sub">Combine Mentor</div>
+        </div>
+      </div>
       <form className="login-card" onSubmit={handleSubmit}>
-        <h1>Combine Mentor Scanner</h1>
+        <h1>Sign in</h1>
+        <p className="login-card-sub">Teacher accounts only. One login per gate device.</p>
         <label>
           Username
-          <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus required />
+          <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus required autoComplete="username" />
         </label>
         <label>
           Password
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            autoComplete="current-password"
+          />
         </label>
-        {error && <div className="error-banner">{error}</div>}
+        {error && (
+          <div className="error-banner" role="alert">
+            <Icon name="alert" size={18} />
+            <span>{error}</span>
+          </div>
+        )}
         <button type="submit" disabled={loading}>
           {loading ? "Signing in..." : "Sign in"}
+          {!loading && <Icon name="arrowRight" size={19} />}
         </button>
         <div className="login-version">{APP_VERSION}</div>
       </form>

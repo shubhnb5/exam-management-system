@@ -6,6 +6,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -54,7 +55,9 @@ class Student(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     full_name: Mapped[str] = mapped_column(String, nullable=False)
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
-    mobile_number: Mapped[str] = mapped_column(String, nullable=False)
+    # Stored normalized to 10 digits (see app.validators.normalize_mobile);
+    # this is what links a roster entry to a student portal account.
+    mobile_number: Mapped[str] = mapped_column(String, nullable=False, index=True)
     exam_center_id: Mapped[int] = mapped_column(ForeignKey("exam_centers.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -75,11 +78,20 @@ class HallTicket(Base):
     qr_token: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
     pdf_path: Mapped[str] = mapped_column(String, nullable=False)
     generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # Set whenever a re-upload changes the details printed on the ticket (name,
+    # mobile, center). The on-disk PDF is regenerated if it is older than this,
+    # so students always download the current version. The QR token never
+    # changes, so already-printed tickets keep scanning correctly.
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     student: Mapped[Student] = relationship(back_populates="hall_ticket")
 
 
 class EmailLog(Base):
+    """Legacy: history of the removed "Send Emails" feature. Nothing writes to
+    this table any more; it is kept so existing history isn't destroyed and is
+    still cleaned up when students are deleted."""
+
     __tablename__ = "email_log"
     __table_args__ = (CheckConstraint("status IN ('pending', 'sent', 'failed')", name="ck_email_log_status"),)
 
@@ -127,3 +139,63 @@ class Upload(Base):
     updated_students: Mapped[int] = mapped_column(Integer, nullable=False)
     error_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class StudentAccount(Base):
+    """A self-registered student login for the student portal. Deliberately
+    separate from `Student` (the admin-uploaded exam roster): a student may
+    register before or after the admin uploads them. The two are linked by the
+    normalized 10-digit mobile number, which is unique per account."""
+
+    __tablename__ = "student_accounts"
+    __table_args__ = (
+        CheckConstraint("gender IN ('male', 'female', 'other')", name="ck_student_accounts_gender"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    first_name: Mapped[str] = mapped_column(String, nullable=False)
+    middle_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    last_name: Mapped[str] = mapped_column(String, nullable=False)
+    email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    mobile_number: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    gender: Mapped[str] = mapped_column(String, nullable=False)
+    # Aadhaar is never stored in plain text: the encrypted value is for
+    # display (masked) to the admin, the keyed hash enforces uniqueness
+    # without having to decrypt every row.
+    aadhaar_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    aadhaar_hash: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
+    password_hash: Mapped[str] = mapped_column(String, nullable=False)
+    # Embedded in every token issued to this account; changing the password
+    # bumps it, which invalidates older sessions and used reset tokens.
+    password_changed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    # Set when the mobile number was proven by OTP (at signup or password
+    # reset). Accounts created before OTP existed have NULL and still work.
+    mobile_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    @property
+    def full_name(self) -> str:
+        return " ".join(p for p in (self.first_name, self.middle_name, self.last_name) if p)
+
+
+class OtpCode(Base):
+    """One-time passwords sent by SMS. Only a keyed hash of the code is stored;
+    a code is single-use, expires after a few minutes and allows a limited
+    number of wrong guesses. Rows also drive the per-number send limits."""
+
+    __tablename__ = "otp_codes"
+    __table_args__ = (
+        CheckConstraint("purpose IN ('signup', 'reset')", name="ck_otp_codes_purpose"),
+        Index("ix_otp_codes_mobile_purpose_created", "mobile_number", "purpose", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    mobile_number: Mapped[str] = mapped_column(String, nullable=False)
+    purpose: Mapped[str] = mapped_column(String, nullable=False)
+    code_hash: Mapped[str] = mapped_column(String, nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

@@ -1,7 +1,12 @@
-import CollapsibleCard from "./CollapsibleCard";
+import Icon from "./Icon";
 
 const RING_RADIUS = 52;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+// Status colours (same thresholds as before): verdigris / turmeric / vermilion.
+const COLOR_GOOD = "#2e9e77";
+const COLOR_MID = "#e39a1f";
+const COLOR_LOW = "#d9533b";
 
 function pct(scanned, total) {
   const raw = total ? (scanned / total) * 100 : 0;
@@ -9,9 +14,9 @@ function pct(scanned, total) {
 }
 
 function progressColor(p) {
-  if (p >= 70) return "#22c55e";
-  if (p >= 30) return "#f59e0b";
-  return "#ef4444";
+  if (p >= 70) return COLOR_GOOD;
+  if (p >= 30) return COLOR_MID;
+  return COLOR_LOW;
 }
 
 function statusMeta(p) {
@@ -30,54 +35,65 @@ export default function StatsPanel({ stats }) {
   const ringOffset = RING_CIRCUMFERENCE * (1 - Math.min(overallPct, 100) / 100);
 
   return (
-    <CollapsibleCard
-      title={`Live Attendance — ${stats.date}`}
-      accent="#2563eb"
-      icon="📡"
-      headerExtra={
-        <span className="live-badge">
-          <span className="live-dot" />
-          LIVE
-        </span>
-      }
-    >
-      <div className="attendance-hero">
-        <div className="attendance-ring-wrap">
-          <svg viewBox="0 0 120 120" className="attendance-ring" role="img" aria-label={`${overallPct}% checked in overall`}>
-            <circle cx="60" cy="60" r={RING_RADIUS} className="attendance-ring-track" />
-            <circle
-              cx="60"
-              cy="60"
-              r={RING_RADIUS}
-              className="attendance-ring-fill"
-              style={{ stroke: ringColor, strokeDasharray: RING_CIRCUMFERENCE, strokeDashoffset: ringOffset }}
-            />
-          </svg>
-          <div className="attendance-ring-label">
-            <div className="attendance-ring-pct">{overallPct}%</div>
-            <div className="attendance-ring-sub">checked in</div>
-          </div>
+    <>
+      <section className="live-hero guilloche" aria-label={`Live Attendance — ${stats.date}`}>
+        <div className="live-hero-head">
+          <span className="eyebrow">Live Attendance — {stats.date}</span>
+          <span className="live-badge">
+            <span className="live-dot" />
+            LIVE
+          </span>
         </div>
-        <div className="attendance-hero-stats">
-          <div className="attendance-hero-number">
-            {totalScanned} <span className="attendance-hero-of">/ {totalStudents}</span>
-          </div>
-          <div className="muted">students checked in across all centers today</div>
-        </div>
-      </div>
 
-      <div className="stats-legend">
-        <span className="stats-legend-item">
-          <span className="stats-legend-dot" style={{ background: "#22c55e" }} />
-          70%+ Excellent
-        </span>
-        <span className="stats-legend-item">
-          <span className="stats-legend-dot" style={{ background: "#f59e0b" }} />
-          30–69% Moderate
-        </span>
-        <span className="stats-legend-item">
-          <span className="stats-legend-dot" style={{ background: "#ef4444" }} />
-          Below 30% Low
+        <div className="attendance-hero">
+          <div className="attendance-ring-wrap">
+            <svg
+              viewBox="0 0 120 120"
+              className="attendance-ring"
+              role="img"
+              aria-label={`${overallPct}% checked in overall`}
+            >
+              <circle cx="60" cy="60" r={RING_RADIUS} className="attendance-ring-track" />
+              <circle
+                cx="60"
+                cy="60"
+                r={RING_RADIUS}
+                className="attendance-ring-fill"
+                style={{ stroke: ringColor, strokeDasharray: RING_CIRCUMFERENCE, strokeDashoffset: ringOffset }}
+              />
+            </svg>
+            <div className="attendance-ring-label">
+              <div className="attendance-ring-pct">{overallPct}%</div>
+              <div className="attendance-ring-sub">checked in</div>
+            </div>
+          </div>
+          <div className="attendance-hero-stats">
+            <div className="attendance-hero-number">
+              {totalScanned} <span className="attendance-hero-of">/ {totalStudents}</span>
+            </div>
+            <div className="live-hero-caption">students checked in across all centers today</div>
+            <div className="stats-legend">
+              <span className="stats-legend-item">
+                <span className="stats-legend-dot" style={{ background: COLOR_GOOD }} />
+                70%+ Excellent
+              </span>
+              <span className="stats-legend-item">
+                <span className="stats-legend-dot" style={{ background: COLOR_MID }} />
+                30–69% Moderate
+              </span>
+              <span className="stats-legend-item">
+                <span className="stats-legend-dot" style={{ background: COLOR_LOW }} />
+                Below 30% Low
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="section-heading">
+        <h3>Exam centers</h3>
+        <span className="muted">
+          {stats.centers.length} {stats.centers.length === 1 ? "center" : "centers"} · refreshes every 10 s
         </span>
       </div>
 
@@ -91,7 +107,10 @@ export default function StatsPanel({ stats }) {
           return (
             <div key={c.exam_center_id} className="stat-card" style={{ "--accent": color }}>
               <div className="stat-card-header">
-                <div className="stat-card-title">{c.exam_center_name}</div>
+                <div className="stat-card-title">
+                  <Icon name="building" size={16} className="stat-card-title-icon" />
+                  {c.exam_center_name}
+                </div>
                 <div className="stat-card-pct" style={{ color }}>
                   {p}%
                 </div>
@@ -110,6 +129,6 @@ export default function StatsPanel({ stats }) {
           );
         })}
       </div>
-    </CollapsibleCard>
+    </>
   );
 }

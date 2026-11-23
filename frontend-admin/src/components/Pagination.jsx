@@ -1,3 +1,5 @@
+import Icon from "./Icon";
+
 export default function Pagination({ page, totalPages, total, pageSize, onChange }) {
   if (total === 0 || totalPages <= 1) return null;
 
@@ -5,7 +7,7 @@ export default function Pagination({ page, totalPages, total, pageSize, onChange
   const end = Math.min(page * pageSize, total);
 
   return (
-    <div className="pagination">
+    <nav className="pagination" aria-label="Pagination">
       <span className="muted pagination-info">
         {start}-{end} of {total}
       </span>
@@ -16,6 +18,7 @@ export default function Pagination({ page, totalPages, total, pageSize, onChange
           disabled={page <= 1}
           onClick={() => onChange(page - 1)}
         >
+          <Icon name="chevronLeft" size={16} />
           Prev
         </button>
         <span className="pagination-page">
@@ -28,8 +31,9 @@ export default function Pagination({ page, totalPages, total, pageSize, onChange
           onClick={() => onChange(page + 1)}
         >
           Next
+          <Icon name="chevronRight" size={16} />
         </button>
       </div>
-    </div>
+    </nav>
   );
 }

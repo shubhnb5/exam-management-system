@@ -27,10 +27,19 @@ from reportlab.platypus import Flowable
 
 _DEVANAGARI_RE = re.compile(r"[ऀ-ॿ]")
 
-# Rasterize at a fixed, generously large pixel size and scale the result down
-# to the requested point size afterwards — keeps output crisp regardless of
-# the final font size.
+# Text is rasterized at 600 DPI for the size it is printed at (standard
+# high-quality print resolution), capped at _RENDER_PX pixels per em. A fixed
+# 200 px/em used to mean 1000-1400 DPI for typical 10-14pt text: invisible on
+# paper, but it made every admit card ~2x slower to generate and much larger.
+# Layout is unaffected — line widths/wrapping come from HarfBuzz font units,
+# not from the raster.
+_TARGET_DPI = 600
 _RENDER_PX = 200
+_MIN_RENDER_PX = 48
+
+
+def _render_px_for(font_size_pt: float) -> int:
+    return max(_MIN_RENDER_PX, min(_RENDER_PX, round(font_size_pt * _TARGET_DPI / 72)))
 
 _hb_font_cache: dict[str, tuple[hb.Font, int]] = {}
 _ft_face_cache: dict[str, freetype.Face] = {}
@@ -61,15 +70,15 @@ def _get_ft_face(font_path: str) -> freetype.Face:
     return face
 
 
-def _shape_to_mask(text: str, font_path: str) -> tuple[Image.Image, float]:
+def _shape_to_mask(text: str, font_path: str, render_px: int = _RENDER_PX) -> tuple[Image.Image, float]:
     """Shapes `text` and rasterizes it into a tightly-cropped single-channel
-    (alpha) image at `_RENDER_PX`. Returns (image, baseline_offset_px) where
-    baseline_offset_px is the distance from the image's top edge down to the
-    text baseline."""
+    (alpha) image at `render_px` pixels per em. Returns (image,
+    baseline_offset_px) where baseline_offset_px is the distance from the
+    image's top edge down to the text baseline."""
     hb_font, upem = _get_hb_font(font_path)
     ft_face = _get_ft_face(font_path)
-    ft_face.set_pixel_sizes(0, _RENDER_PX)
-    scale = _RENDER_PX / upem
+    ft_face.set_pixel_sizes(0, render_px)
+    scale = render_px / upem
 
     buf = hb.Buffer()
     buf.add_str(text)
@@ -120,8 +129,9 @@ def render_shaped_png(text: str, font_path: str, font_size_pt: float) -> tuple[b
     (exam title, rule text, etc.) for every single student, and shaping +
     rasterizing through HarfBuzz/FreeType is the most expensive step here —
     so a repeat call for identical (text, font, size) is pure lookup."""
-    mask, baseline_px = _shape_to_mask(text, font_path)
-    pt_per_px = font_size_pt / _RENDER_PX
+    render_px = _render_px_for(font_size_pt)
+    mask, baseline_px = _shape_to_mask(text, font_path, render_px)
+    pt_per_px = font_size_pt / render_px
 
     rgba = Image.new("RGBA", mask.size, (0, 0, 0, 0))
     black = Image.new("RGBA", mask.size, (0, 0, 0, 255))
@@ -172,20 +182,41 @@ def wrap_shaped_lines(text: str, font_path: str, font_size_pt: float, max_width_
 
 
 class ShapedTextFlowable(Flowable):
-    """A single-line reportlab Flowable for Devanagari table-cell text,
-    standing in for `Paragraph` wherever reportlab's own text drawing would
-    mangle Indic conjuncts. Does not wrap across multiple lines — if the
-    shaped text is wider than the available cell width it's scaled down to
-    fit rather than clipped or wrapped."""
+    """A reportlab Flowable for Devanagari table-cell text, standing in for
+    `Paragraph` wherever reportlab's own text drawing would mangle Indic
+    conjuncts. Text slightly wider than the cell is scaled down to fit on one
+    line; text that would have to shrink below MIN_SCALE (e.g. a long exam
+    centre name) is word-wrapped onto several lines instead, so it stays
+    readable."""
 
-    def __init__(self, text: str, font_path: str, font_size: float):
+    MIN_SCALE = 0.8
+
+    def __init__(self, text: str, font_path: str, font_size: float, align: str = "LEFT"):
         super().__init__()
+        self.text = text
+        self.font_path = font_path
+        self.font_size = font_size
+        self.align = align
         self.png_bytes, self.img_w, self.img_h, self.baseline = render_shaped_png(text, font_path, font_size)
         self.leading = font_size * 1.35
+        self._lines: list[tuple[bytes, float, float, float]] | None = None
 
     def wrap(self, available_width, available_height):
+        self._lines = None
         if self.img_w > available_width > 0:
             shrink = available_width / self.img_w
+            if shrink < self.MIN_SCALE:
+                line_texts = wrap_shaped_lines(self.text, self.font_path, self.font_size, available_width)
+                if len(line_texts) > 1:
+                    self._lines = [render_shaped_png(t, self.font_path, self.font_size) for t in line_texts]
+                    # A single word wider than the cell still gets scaled to fit.
+                    self._lines = [
+                        (png, w * min(1, available_width / w), h * min(1, available_width / w), b)
+                        for png, w, h, b in self._lines
+                    ]
+                    self.width = max(w for _, w, _, _ in self._lines)
+                    self.height = self.leading * len(self._lines)
+                    return self.width, self.height
             self.img_w *= shrink
             self.img_h *= shrink
             self.baseline *= shrink
@@ -194,6 +225,15 @@ class ShapedTextFlowable(Flowable):
         return self.width, self.height
 
     def draw(self):
+        if self._lines:
+            y = self.height - self.leading
+            for png_bytes, w, h, _baseline in self._lines:
+                x = (self.width - w) / 2 if self.align == "CENTER" else 0
+                self.canv.drawImage(
+                    ImageReader(BytesIO(png_bytes)), x, y + (self.leading - h) / 2, width=w, height=h, mask="auto"
+                )
+                y -= self.leading
+            return
         y = (self.height - self.img_h) / 2
         self.canv.drawImage(
             ImageReader(BytesIO(self.png_bytes)), 0, y, width=self.img_w, height=self.img_h, mask="auto"
