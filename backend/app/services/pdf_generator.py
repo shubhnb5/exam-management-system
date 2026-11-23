@@ -1,10 +1,12 @@
 import json
 import math
 import os
+import tempfile
 from dataclasses import dataclass, field
 from io import BytesIO
 
 from pypdf import PdfReader, PdfWriter
+from reportlab import rl_config
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import A4
@@ -17,6 +19,12 @@ from app.services.devanagari_shaping import ShapedTextFlowable, contains_devanag
 from app.services.fonts import BODY, BODY_BOLD, FONT_PATHS, ensure_fonts_registered
 from app.services.qr_service import render_qr_png
 from app.services.rules_page import build_rules_page_pdf
+
+# Store images as compressed binary instead of ASCII85 text. ASCII85 is only
+# needed for 7-bit transports; it is encoded in pure Python, which made it
+# the single most expensive step of generating a ticket (~half the time) and
+# made every PDF ~10% bigger. The rendered output is identical.
+rl_config.useA85 = 0
 
 MARGIN = 36
 PAGE_W, PAGE_H = A4
@@ -304,7 +312,7 @@ def _draw_signature_placeholder(c: canvas.Canvas, cx: float, cy: float, radius: 
 def _cell_flowable(text: str, font_name: str, font_size: float, align: str = "LEFT"):
     text = str(text)
     if contains_devanagari(text):
-        return ShapedTextFlowable(text, FONT_PATHS[font_name], font_size)
+        return ShapedTextFlowable(text, FONT_PATHS[font_name], font_size, align=align)
     alignment = TA_CENTER if align == "CENTER" else TA_LEFT
     return Paragraph(
         text,
@@ -544,6 +552,19 @@ def generate_hall_ticket_pdf(
     for page in rules_reader.pages:
         writer.add_page(page)
 
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    with open(output_path, "wb") as f:
-        writer.write(f)
+    # Write to a temporary file and atomically swap it in, so a student
+    # downloading while the card is being (re)generated can never receive a
+    # half-written PDF.
+    out_dir = os.path.dirname(output_path) or "."
+    os.makedirs(out_dir, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(dir=out_dir, prefix=".tmp-", suffix=".pdf")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            writer.write(f)
+        os.replace(tmp_path, output_path)
+    except BaseException:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        raise

@@ -2,22 +2,30 @@ from datetime import date
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session, joinedload
 
 from app.database import SessionLocal, get_db
-from app.job_status import fail_job, get_job, is_running, start_job, finish_job
-from app.models import EmailLog, ExamCenter, Scan, Student, Upload, User
+from app.http_errors import field_conflicts, field_errors
+from app.job_status import fail_job, finish_job, get_job, try_start_job
+from app import field_crypto
+from app.models import ExamCenter, Scan, Student, StudentAccount, Upload, User
 from app.schemas import (
     AttendanceResponse,
     AttendanceRow,
     CenterStats,
     DeleteResult,
     DeleteStudentsRequest,
+    ExamCenterCreate,
     ExamCenterOut,
     JobStartedResponse,
     JobStatusResponse,
     StatsResponse,
+    StudentAccountOut,
+    StudentCreate,
     StudentOut,
+    StudentSaveResult,
+    StudentUpdate,
     TeacherCreate,
     TeacherOut,
     TeacherUpdate,
@@ -25,31 +33,64 @@ from app.schemas import (
     UploadResult,
 )
 from app.security import hash_password, require_admin
-from app.services.email_service import send_all_pending_emails
+from app.services.admit_card_lookup import admit_card_status, roster_by_mobile
 from app.services.excel_import import import_students_excel
 from app.services.student_deletion import delete_all_students, delete_students
+from app.services.student_records import (
+    create_ticket_for_student,
+    mark_ticket_outdated,
+    ticket_changes,
+    validate_student_input,
+)
 from app.services.ticket_batch import generate_tickets_for_all
-from app.services.ticket_files import ensure_ticket_pdf_on_disk
+from app.services.ticket_files import discard_ticket_pdf, ensure_ticket_pdf_on_disk
 from app.timeutils import ist_today
+from app.validators import clean_name, mask_aadhaar
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 
 
-@router.post("/students/upload", response_model=UploadResult)
+def _run_upload_job(content: bytes, filename: str, admin_id: int, exam_center_id: int) -> None:
+    db = SessionLocal()
+    try:
+        upload, problems, refreshed = import_students_excel(db, content, filename, admin_id, exam_center_id)
+        result = UploadResult(upload=UploadOut.model_validate(upload), problems=problems, refreshed_tickets=refreshed)
+        finish_job("upload", result.model_dump(mode="json"))
+    except ValueError as exc:  # a problem with the file itself (missing columns, empty, ...)
+        fail_job("upload", str(exc))
+    except Exception as exc:  # noqa: BLE001
+        fail_job("upload", f"Upload failed: {exc}")
+    finally:
+        db.close()
+
+
+@router.post("/students/upload", response_model=JobStartedResponse, status_code=status.HTTP_202_ACCEPTED)
 def upload_students(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     exam_center_id: int = Form(...),
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
+    """Starts processing an uploaded sheet in the background; poll
+    /students/upload/status for the result. A 5000-row PDF takes close to a
+    minute to read (PDF table extraction is slow), which would otherwise hit
+    the reverse proxy's request timeout."""
     if not file.filename.lower().endswith((".xlsx", ".xlsm", ".csv", ".pdf", ".docx")):
         raise HTTPException(status_code=400, detail="Please upload a .xlsx, .xlsm, .csv, .pdf, or .docx file")
+    if db.get(ExamCenter, exam_center_id) is None:
+        raise HTTPException(status_code=400, detail="Unknown exam center.")
     content = file.file.read()
-    try:
-        upload, errors = import_students_excel(db, content, file.filename, admin.id, exam_center_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    return UploadResult(upload=UploadOut.model_validate(upload), errors=errors)
+    if not try_start_job("upload"):
+        raise HTTPException(status_code=409, detail="Another upload is still being processed. Please wait for it to finish.")
+    background_tasks.add_task(_run_upload_job, content, file.filename, admin.id, exam_center_id)
+    return JobStartedResponse()
+
+
+@router.get("/students/upload/status", response_model=JobStatusResponse)
+def upload_students_status():
+    """status: idle | running | done (result = UploadResult) | error (result = {"error": message})"""
+    return get_job("upload")
 
 
 @router.get("/uploads", response_model=list[UploadOut])
@@ -68,26 +109,14 @@ def _run_generate_job() -> None:
         db.close()
 
 
-def _run_send_emails_job() -> None:
-    db = SessionLocal()
-    try:
-        sent, failed, failures = send_all_pending_emails(db)
-        finish_job("send_emails", {"sent": sent, "failed": failed, "failures": failures})
-    except Exception as exc:  # noqa: BLE001
-        fail_job("send_emails", str(exc))
-    finally:
-        db.close()
-
-
 @router.post("/tickets/generate", response_model=JobStartedResponse)
 def generate_tickets(background_tasks: BackgroundTasks):
-    # Generating (and especially emailing) hundreds of tickets synchronously
+    # Generating hundreds of tickets synchronously
     # can take minutes — far longer than most hosting platforms' HTTP request
     # timeouts allow — so this runs in the background and the frontend polls
     # /tickets/generate/status instead of waiting on this request.
-    if is_running("generate"):
+    if not try_start_job("generate"):
         raise HTTPException(status_code=409, detail="A ticket generation job is already running.")
-    start_job("generate")
     background_tasks.add_task(_run_generate_job)
     return JobStartedResponse()
 
@@ -97,38 +126,105 @@ def generate_tickets_status():
     return get_job("generate")
 
 
-@router.post("/tickets/send-emails", response_model=JobStartedResponse)
-def send_emails(background_tasks: BackgroundTasks):
-    if is_running("send_emails"):
-        raise HTTPException(status_code=409, detail="An email sending job is already running.")
-    start_job("send_emails")
-    background_tasks.add_task(_run_send_emails_job)
-    return JobStartedResponse()
-
-
-@router.get("/tickets/send-emails/status", response_model=JobStatusResponse)
-def send_emails_status():
-    return get_job("send_emails")
+def _student_out(s: Student) -> StudentOut:
+    return StudentOut(
+        id=s.id,
+        full_name=s.full_name,
+        email=s.email,
+        mobile_number=s.mobile_number,
+        exam_center_id=s.exam_center_id,
+        has_ticket=s.hall_ticket is not None,
+    )
 
 
 @router.get("/students", response_model=list[StudentOut])
 def list_students(db: Session = Depends(get_db)):
-    students = db.query(Student).all()
-    result = []
-    for s in students:
-        latest_log = db.query(EmailLog).filter(EmailLog.student_id == s.id).order_by(EmailLog.id.desc()).first()
-        result.append(
-            StudentOut(
-                id=s.id,
-                full_name=s.full_name,
-                email=s.email,
-                mobile_number=s.mobile_number,
-                exam_center_id=s.exam_center_id,
-                has_ticket=s.hall_ticket is not None,
-                email_status=latest_log.status if latest_log else None,
+    students = db.query(Student).options(joinedload(Student.hall_ticket)).all()
+    return [_student_out(s) for s in students]
+
+
+def _validated(db: Session, payload, student_id: int | None = None) -> dict:
+    values, errors, conflicts = validate_student_input(
+        db,
+        full_name=payload.full_name,
+        email=payload.email,
+        mobile_number=payload.mobile_number,
+        exam_center_id=payload.exam_center_id,
+        student_id=student_id,
+    )
+    if errors:
+        raise field_errors(errors)
+    if conflicts:
+        raise field_conflicts(conflicts)
+    return values
+
+
+def _commit_or_conflict(db: Session) -> None:
+    # The checks above give friendly messages; the unique email constraint is
+    # the real guarantee if two saves race each other.
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise field_conflicts({"email": "This email already belongs to another student."})
+
+
+@router.post("/students", response_model=StudentSaveResult, status_code=status.HTTP_201_CREATED)
+def create_student(payload: StudentCreate, db: Session = Depends(get_db)):
+    """Adds one student by hand — e.g. someone missed from an uploaded sheet —
+    and optionally generates their admit card straight away."""
+    values = _validated(db, payload)
+    student = Student(
+        full_name=values["full_name"],
+        email=values["email"],
+        mobile_number=values["mobile_number"],
+        exam_center_id=values["center"].id,
+    )
+    db.add(student)
+    _commit_or_conflict(db)
+    db.refresh(student)
+
+    result = StudentSaveResult(student=_student_out(student))
+    if payload.generate_admit_card:
+        try:
+            create_ticket_for_student(db, student)
+            db.commit()
+            result.ticket_generated = True
+        except Exception as exc:  # noqa: BLE001 - the student is saved either way
+            db.rollback()
+            result.ticket_error = (
+                f"Student saved, but the admit card could not be generated ({exc}). "
+                "Use Generate Admit Cards to try again."
             )
-        )
+        db.refresh(student)
+        result.student = _student_out(student)
     return result
+
+
+@router.put("/students/{student_id}", response_model=StudentSaveResult)
+def update_student(student_id: int, payload: StudentUpdate, db: Session = Depends(get_db)):
+    """Corrects one student's details. If the details printed on an existing
+    admit card change, the card is regenerated (same QR token)."""
+    student = db.get(Student, student_id)
+    if student is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
+    values = _validated(db, payload, student_id=student_id)
+
+    changes = ticket_changes(student, values["full_name"], values["mobile_number"], values["center"])
+    stale_pdf = mark_ticket_outdated(student) if changes else None
+    student.full_name = values["full_name"]
+    student.email = values["email"]
+    student.mobile_number = values["mobile_number"]
+    student.exam_center_id = values["center"].id
+    _commit_or_conflict(db)
+    if stale_pdf:
+        discard_ticket_pdf(stale_pdf)
+    db.refresh(student)
+
+    return StudentSaveResult(
+        student=_student_out(student),
+        ticket_changes=changes if student.hall_ticket is not None else [],
+    )
 
 
 @router.delete("/students", response_model=DeleteResult)
@@ -165,7 +261,41 @@ def download_ticket(student_id: int, db: Session = Depends(get_db)):
 
 @router.get("/exam-centers", response_model=list[ExamCenterOut])
 def list_exam_centers(db: Session = Depends(get_db)):
-    return db.query(ExamCenter).all()
+    return db.query(ExamCenter).order_by(ExamCenter.id).all()
+
+
+def _next_center_code(existing_codes: set[str]) -> str:
+    """CENTER_A, CENTER_B, ... CENTER_Z, CENTER_AA, ... — continues the
+    naming of the two seeded centers."""
+    n = 0
+    while True:
+        n += 1
+        letters, k = "", n
+        while k:
+            k, rem = divmod(k - 1, 26)
+            letters = chr(ord("A") + rem) + letters
+        code = f"CENTER_{letters}"
+        if code not in existing_codes:
+            return code
+
+
+@router.post("/exam-centers", response_model=ExamCenterOut, status_code=status.HTTP_201_CREATED)
+def create_exam_center(payload: ExamCenterCreate, db: Session = Depends(get_db)):
+    name = clean_name(payload.name)
+    if len(name) < 3:
+        raise HTTPException(status_code=400, detail="Exam center name must be at least 3 characters.")
+    if len(name) > 200:
+        raise HTTPException(status_code=400, detail="Exam center name must be at most 200 characters.")
+
+    centers = db.query(ExamCenter).all()
+    if any(clean_name(c.name).casefold() == name.casefold() for c in centers):
+        raise HTTPException(status_code=409, detail="An exam center with this name already exists.")
+
+    center = ExamCenter(name=name, code=_next_center_code({c.code for c in centers}))
+    db.add(center)
+    db.commit()
+    db.refresh(center)
+    return center
 
 
 @router.get("/stats", response_model=StatsResponse)
@@ -263,5 +393,44 @@ def delete_teacher_endpoint(teacher_id: int, db: Session = Depends(get_db)):
             detail="This teacher has attendance scan history and can't be deleted — revoke their access instead.",
         )
     db.delete(teacher)
+    db.commit()
+    return DeleteResult(deleted=1)
+
+
+@router.get("/student-accounts", response_model=list[StudentAccountOut])
+def list_student_accounts(db: Session = Depends(get_db)):
+    accounts = db.query(StudentAccount).order_by(StudentAccount.created_at.desc()).all()
+    roster = roster_by_mobile(db, [a.mobile_number for a in accounts])
+
+    result = []
+    for a in accounts:
+        aadhaar = field_crypto.decrypt(a.aadhaar_encrypted) if a.aadhaar_encrypted else None
+        card = admit_card_status(roster.get(a.mobile_number))
+        result.append(
+            StudentAccountOut(
+                id=a.id,
+                full_name=a.full_name,
+                email=a.email,
+                mobile_number=a.mobile_number,
+                gender=a.gender,
+                aadhaar_masked=mask_aadhaar(aadhaar) if aadhaar else None,
+                created_at=a.created_at,
+                admit_card_status=card.status,
+                exam_center_name=card.exam_center_name,
+                mobile_verified=a.mobile_verified_at is not None,
+            )
+        )
+    return result
+
+
+@router.delete("/student-accounts/{account_id}", response_model=DeleteResult)
+def delete_student_account(account_id: int, db: Session = Depends(get_db)):
+    """Removes a portal login only — the uploaded student record, admit card
+    and attendance are untouched. Frees the mobile number so the right person
+    can register with it."""
+    account = db.get(StudentAccount, account_id)
+    if account is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student account not found")
+    db.delete(account)
     db.commit()
     return DeleteResult(deleted=1)

@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -6,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import SessionLocal
 from app.models import ExamCenter, User
-from app.routers import admin, auth, scan
+from app.routers import admin, auth, scan, student
 from app.security import hash_password
 
 
@@ -40,8 +41,43 @@ def seed_defaults():
         db.close()
 
 
+logger = logging.getLogger("uvicorn.error")
+
+_INSECURE_SECRETS = {"", "changeme", "secret", "change-me"}
+
+
+def warn_about_insecure_settings():
+    """Loud startup warnings for settings that are fine locally but unsafe in
+    production. Logged only - nothing is blocked."""
+    if settings.jwt_secret_key.strip().lower() in _INSECURE_SECRETS:
+        logger.warning(
+            "SECURITY: JWT_SECRET_KEY is not set (or is a placeholder). Anyone could forge admin/teacher/student "
+            'logins. Set a long random value: python -c "import secrets; print(secrets.token_urlsafe(32))"'
+        )
+    if not settings.field_encryption_key:
+        logger.warning(
+            "SECURITY: FIELD_ENCRYPTION_KEY is not set; Aadhaar encryption key is derived from JWT_SECRET_KEY. "
+            "Set a dedicated key before real students register (see .env.example)."
+        )
+    if settings.otp_provider != "msg91":
+        logger.warning(
+            "OTP TEST MODE (OTP_PROVIDER=%s): no SMS is sent - OTPs only appear in this log%s. "
+            "Set OTP_PROVIDER=msg91 with MSG91_AUTH_KEY and MSG91_TEMPLATE_ID before real students register.",
+            settings.otp_provider,
+            " and on screen (OTP_DEV_ECHO=true)" if settings.otp_dev_echo else "",
+        )
+    elif not settings.msg91_auth_key or not settings.msg91_template_id:
+        logger.warning("OTP: OTP_PROVIDER=msg91 but MSG91_AUTH_KEY / MSG91_TEMPLATE_ID are missing - OTP sending will fail.")
+    if settings.admin_default_password.strip().lower() in _INSECURE_SECRETS | {"admin", "password"}:
+        logger.warning(
+            "SECURITY: ADMIN_DEFAULT_PASSWORD is a default value. It only applies when the admin account is first "
+            "created - make sure the live admin password is strong."
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    warn_about_insecure_settings()
     seed_defaults()
     yield
 
@@ -54,11 +90,14 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Lets the student portal read the admit card's download filename.
+    expose_headers=["Content-Disposition"],
 )
 
 app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(scan.router)
+app.include_router(student.router)
 
 
 @app.get("/health")
