@@ -60,5 +60,18 @@ services:
         max-file: "3"
     depends_on:
       - backend
+
+  frontend-student:
+    image: examflow/frontend-student:latest
+    container_name: examflow-frontend-student
+    env_file: ./frontend-student/.env.example
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      - backend
 volumes:
   db_data:
