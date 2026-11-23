@@ -23,6 +23,8 @@ from app.rate_limit import student_login_throttle
 from app.schemas import (
     AdmitCardLink,
     ForgotPasswordResetRequest,
+    FirebaseVerifyRequest,
+    FirebaseWebConfig,
     ForgotPasswordVerifyResponse,
     OtpSendRequest,
     OtpSendResponse,
@@ -49,6 +51,8 @@ from app.security import (
     resolve_student_token,
     verify_password,
 )
+from app.config import settings
+from app.services import firebase_auth
 from app.services import otp as otp_service
 from app.services.admit_card_lookup import STATUS_AVAILABLE, admit_card_status, find_roster_student
 from app.services.ticket_files import ensure_ticket_pdf_on_disk
@@ -93,6 +97,43 @@ def _client_ip(request: Request) -> str | None:
     return request.client.host if request.client else None
 
 
+def _firebase_enabled() -> bool:
+    return settings.otp_provider == "firebase"
+
+
+def _firebase_send_response() -> OtpSendResponse:
+    """With Firebase the server doesn't send anything itself: it has done the
+    checks (valid number, account exists / doesn't) and tells the browser to
+    let Firebase send the SMS."""
+    return OtpSendResponse(
+        expires_in_seconds=settings.otp_expiry_minutes * 60,
+        resend_after_seconds=settings.otp_resend_seconds,
+        test_mode=False,
+        channel="firebase",
+        firebase=FirebaseWebConfig(
+            apiKey=settings.firebase_api_key,
+            authDomain=settings.firebase_auth_domain or f"{settings.firebase_project_id}.firebaseapp.com",
+            projectId=settings.firebase_project_id,
+        ),
+    )
+
+
+def _verified_firebase_mobile(payload: FirebaseVerifyRequest) -> str:
+    if not _firebase_enabled():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not available.")
+    mobile = _valid_mobile_or_422(payload.mobile_number)
+    try:
+        verified = firebase_auth.verify_phone_id_token(payload.id_token or "")
+    except firebase_auth.FirebaseTokenError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"errors": {"otp": str(exc)}})
+    if verified != mobile:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"errors": {"otp": "The verified number does not match. Please request a new OTP."}},
+        )
+    return mobile
+
+
 # ----------------------------------------------------------- signup OTP
 
 
@@ -102,6 +143,8 @@ def signup_send_otp(payload: OtpSendRequest, request: Request, db: Session = Dep
     mobile = _valid_mobile_or_422(payload.mobile_number)
     if db.query(StudentAccount.id).filter(StudentAccount.mobile_number == mobile).first():
         raise _conflict({"mobile_number": MSG_MOBILE_TAKEN})
+    if _firebase_enabled():
+        return _firebase_send_response()
     try:
         return otp_service.send_otp(db, mobile, otp_service.PURPOSE_SIGNUP, _client_ip(request))
     except otp_service.OtpError as exc:
@@ -117,6 +160,19 @@ def signup_verify_otp(payload: OtpVerifyRequest, db: Session = Depends(get_db)):
         otp_service.verify_otp(db, mobile, otp_service.PURPOSE_SIGNUP, payload.otp)
     except otp_service.OtpError as exc:
         raise _otp_http_error(exc)
+    return SignupOtpVerifyResponse(
+        mobile_verification_token=create_signup_mobile_token(mobile),
+        expires_in_minutes=SIGNUP_MOBILE_TOKEN_EXPIRE_MINUTES,
+    )
+
+
+@router.post("/signup/verify-firebase", response_model=SignupOtpVerifyResponse)
+def signup_verify_firebase(payload: FirebaseVerifyRequest, db: Session = Depends(get_db)):
+    """Firebase variant of step 2: the browser verified the OTP with Firebase
+    and sends Google's signed ID token, which proves the phone number."""
+    mobile = _verified_firebase_mobile(payload)
+    if db.query(StudentAccount.id).filter(StudentAccount.mobile_number == mobile).first():
+        raise _conflict({"mobile_number": MSG_MOBILE_TAKEN})
     return SignupOtpVerifyResponse(
         mobile_verification_token=create_signup_mobile_token(mobile),
         expires_in_minutes=SIGNUP_MOBILE_TOKEN_EXPIRE_MINUTES,
@@ -241,6 +297,8 @@ def forgot_password_send_otp(payload: OtpSendRequest, request: Request, db: Sess
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"errors": {"mobile_number": "No account is registered with this mobile number."}},
         )
+    if _firebase_enabled():
+        return _firebase_send_response()
     try:
         return otp_service.send_otp(db, mobile, otp_service.PURPOSE_RESET, _client_ip(request))
     except otp_service.OtpError as exc:
@@ -264,6 +322,26 @@ def forgot_password_verify_otp(payload: OtpVerifyRequest, db: Session = Depends(
         raise _otp_http_error(exc)
     if account.mobile_verified_at is None:
         # Older accounts (created before OTP existed) become verified here.
+        account.mobile_verified_at = _now()
+        db.commit()
+        db.refresh(account)
+    return ForgotPasswordVerifyResponse(
+        reset_token=create_student_password_reset_token(account),
+        expires_in_minutes=PASSWORD_RESET_EXPIRE_MINUTES,
+    )
+
+
+@router.post("/forgot-password/verify-firebase", response_model=ForgotPasswordVerifyResponse)
+def forgot_password_verify_firebase(payload: FirebaseVerifyRequest, db: Session = Depends(get_db)):
+    """Firebase variant of step 2 of forgot password."""
+    mobile = _verified_firebase_mobile(payload)
+    account = db.query(StudentAccount).filter(StudentAccount.mobile_number == mobile).first()
+    if account is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"errors": {"mobile_number": "No account is registered with this mobile number."}},
+        )
+    if account.mobile_verified_at is None:
         account.mobile_verified_at = _now()
         db.commit()
         db.refresh(account)

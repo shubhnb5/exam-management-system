@@ -88,7 +88,7 @@ def _deliver(mobile: str, code: str) -> None:
 
 
 def is_test_mode() -> bool:
-    return settings.otp_provider != "msg91"
+    return settings.otp_provider not in ("msg91", "firebase")
 
 
 # ------------------------------------------------------------------- logic

@@ -63,7 +63,10 @@ def warn_about_insecure_settings():
             "SECURITY: FIELD_ENCRYPTION_KEY is not set; Aadhaar encryption key is derived from JWT_SECRET_KEY. "
             "Set a dedicated key before real students register (see .env.example)."
         )
-    if settings.otp_provider != "msg91":
+    if settings.otp_provider == "firebase":
+        if not (settings.firebase_project_id and settings.firebase_api_key):
+            logger.warning("OTP: OTP_PROVIDER=firebase but FIREBASE_PROJECT_ID / FIREBASE_API_KEY are missing - OTP will not work.")
+    elif settings.otp_provider != "msg91":
         logger.warning(
             "OTP TEST MODE (OTP_PROVIDER=%s): no SMS is sent - OTPs only appear in this log%s. "
             "Set OTP_PROVIDER=msg91 with MSG91_AUTH_KEY and MSG91_TEMPLATE_ID before real students register.",

@@ -1387,3 +1387,14 @@ form {
 .stepper-dots span {
   width: 22px;
 }
+
+/* invisible reCAPTCHA host for Firebase phone OTP */
+.recaptcha-slot {
+  height: 0;
+  overflow: visible;
+}
+
+/* Google requires the reCAPTCHA badge to stay visible; keep it above the page */
+.grecaptcha-badge {
+  z-index: 50;
+}

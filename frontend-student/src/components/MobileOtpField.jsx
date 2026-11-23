@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import api, { parseApiError } from "../api";
+import { confirmFirebaseOtp, firebaseErrorMessage, isFirebaseError, sendFirebaseOtp } from "../firebasePhone";
 import { MobileField } from "./Field";
 import Icon from "./Icon";
 import { OtpInput, ResendLink, TestModeNotice, useCountdown } from "./Otp";
@@ -20,6 +21,8 @@ export default function MobileOtpField({ value, onChange, token, onVerified, err
   const [resendAt, setResendAt] = useState(0);
   const [sendInfo, setSendInfo] = useState(null); // { test_mode, dev_otp }
   const secondsLeft = useCountdown(resendAt);
+  const confirmationRef = useRef(null); // Firebase confirmation handle (firebase channel)
+  const recaptchaRef = useRef(null);
 
   const verified = !!token;
   const shownMobileError = localError || error;
@@ -35,13 +38,22 @@ export default function MobileOtpField({ value, onChange, token, onVerified, err
     setOtpError("");
     try {
       const res = await api.post("/student/signup/send-otp", { mobile_number: value });
+      confirmationRef.current = null;
+      if (res.data.channel === "firebase") {
+        // Backend checks passed; Google Firebase sends the SMS.
+        confirmationRef.current = await sendFirebaseOtp(res.data.firebase, value, recaptchaRef.current);
+      }
       setStage("sent");
       setOtp("");
       setSendInfo(res.data);
       setResendAt(Date.now() + res.data.resend_after_seconds * 1000);
     } catch (err) {
-      const { fieldErrors, message } = await parseApiError(err, "Could not send the OTP. Please try again.");
-      setLocalError(fieldErrors.mobile_number || message);
+      if (isFirebaseError(err)) {
+        setLocalError(firebaseErrorMessage(err));
+      } else {
+        const { fieldErrors, message } = await parseApiError(err, "Could not send the OTP. Please try again.");
+        setLocalError(fieldErrors.mobile_number || message);
+      }
     } finally {
       setBusy(false);
     }
@@ -55,19 +67,31 @@ export default function MobileOtpField({ value, onChange, token, onVerified, err
     setBusy(true);
     setOtpError("");
     try {
-      const res = await api.post("/student/signup/verify-otp", { mobile_number: value, otp });
+      let res;
+      if (confirmationRef.current) {
+        const idToken = await confirmFirebaseOtp(confirmationRef.current, otp);
+        res = await api.post("/student/signup/verify-firebase", { mobile_number: value, id_token: idToken });
+      } else {
+        res = await api.post("/student/signup/verify-otp", { mobile_number: value, otp });
+      }
+      confirmationRef.current = null;
       onVerified(res.data.mobile_verification_token);
       setStage("enter");
       setSendInfo(null);
     } catch (err) {
-      const { fieldErrors, message } = await parseApiError(err, "Could not verify the OTP. Please try again.");
-      setOtpError(fieldErrors.otp || fieldErrors.mobile_number || message);
+      if (isFirebaseError(err)) {
+        setOtpError(firebaseErrorMessage(err));
+      } else {
+        const { fieldErrors, message } = await parseApiError(err, "Could not verify the OTP. Please try again.");
+        setOtpError(fieldErrors.otp || fieldErrors.mobile_number || message);
+      }
     } finally {
       setBusy(false);
     }
   }
 
   function changeNumber() {
+    confirmationRef.current = null;
     onVerified(null);
     setStage("enter");
     setOtp("");
@@ -78,6 +102,7 @@ export default function MobileOtpField({ value, onChange, token, onVerified, err
 
   return (
     <div className="mobile-otp">
+      <div ref={recaptchaRef} className="recaptcha-slot" aria-hidden="true" />
       <MobileField
         label="Mobile number"
         value={value}

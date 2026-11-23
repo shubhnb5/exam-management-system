@@ -37,6 +37,15 @@ class Settings(BaseSettings):
     msg91_auth_key: str = ""
     msg91_template_id: str = ""
     msg91_otp_url: str = "https://control.msg91.com/api/v5/otp"
+    # "firebase": Google Firebase Phone Authentication sends the SMS (Google's
+    # own approved senders - no DLT registration of our own needed). The
+    # browser does the OTP with Firebase; the backend verifies Google's signed
+    # ID token. The three web-config values come from Firebase console ->
+    # Project settings -> Your apps -> Web app.
+    firebase_project_id: str = ""
+    firebase_api_key: str = ""
+    firebase_auth_domain: str = ""
+    firebase_certs_url: str = "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com"
 
     ticket_storage_dir: str = "./storage/tickets"
 
