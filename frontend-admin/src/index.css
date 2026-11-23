@@ -2919,3 +2919,9 @@ table {
     bottom: 28px;
   }
 }
+
+.center-usage {
+  margin-top: 8px;
+  max-width: 260px;
+  white-space: normal;
+}

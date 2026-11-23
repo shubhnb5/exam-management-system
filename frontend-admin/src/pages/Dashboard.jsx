@@ -8,6 +8,7 @@ import StatsPanel from "../components/StatsPanel";
 import TeachersPanel from "../components/TeachersPanel";
 import AttendancePanel from "../components/AttendancePanel";
 import StudentAccountsPanel from "../components/StudentAccountsPanel";
+import ExamCentersPanel from "../components/ExamCentersPanel";
 import Sidebar from "../components/Sidebar";
 import TabBar from "../components/TabBar";
 import Spinner from "../components/Spinner";
@@ -60,6 +61,7 @@ export default function Dashboard() {
         { id: "attendance", label: "Attendance", short: "Attendance", icon: "calendar", show: true },
         // Always shown: it's also where new exam centers are added.
         { id: "upload", label: "Upload Students", short: "Upload", icon: "upload", show: true },
+        { id: "centers", label: "Exam Centers", short: "Centers", icon: "building", show: true },
         { id: "generate", label: "Generate Admit Cards", short: "Generate", icon: "ticket", show: true },
         { id: "students", label: "Students", short: "Students", icon: "students", show: hasCenters },
         { id: "accounts", label: "Student Accounts", short: "Accounts", icon: "idcard", show: true },
@@ -134,6 +136,7 @@ export default function Dashboard() {
               {active === "upload" && (
                 <ExcelUpload centers={centers} onUploaded={refreshAll} onCentersChanged={refreshAll} />
               )}
+              {active === "centers" && <ExamCentersPanel onChanged={refreshAll} />}
               {active === "generate" && <TicketActions onDone={refreshAll} />}
               {active === "students" && hasCenters && (
                 <StudentsTable students={students} centers={centers} onChanged={refreshAll} />

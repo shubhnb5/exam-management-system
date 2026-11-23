@@ -9,7 +9,9 @@ from app.database import SessionLocal, get_db
 from app.http_errors import field_conflicts, field_errors
 from app.job_status import fail_job, finish_job, get_job, try_start_job
 from app import field_crypto
-from app.models import ExamCenter, Scan, Student, StudentAccount, Upload, User
+from sqlalchemy import func
+
+from app.models import ExamCenter, HallTicket, Scan, Student, StudentAccount, Upload, User
 from app.schemas import (
     AttendanceResponse,
     AttendanceRow,
@@ -18,6 +20,9 @@ from app.schemas import (
     DeleteStudentsRequest,
     ExamCenterCreate,
     ExamCenterOut,
+    ExamCenterOverview,
+    ExamCenterSaveResult,
+    ExamCenterUpdate,
     JobStartedResponse,
     JobStatusResponse,
     StatsResponse,
@@ -279,23 +284,123 @@ def _next_center_code(existing_codes: set[str]) -> str:
             return code
 
 
-@router.post("/exam-centers", response_model=ExamCenterOut, status_code=status.HTTP_201_CREATED)
-def create_exam_center(payload: ExamCenterCreate, db: Session = Depends(get_db)):
-    name = clean_name(payload.name)
+def _valid_center_name(db: Session, raw: str, exclude_id: int | None = None) -> str:
+    name = clean_name(raw)
     if len(name) < 3:
         raise HTTPException(status_code=400, detail="Exam center name must be at least 3 characters.")
     if len(name) > 200:
         raise HTTPException(status_code=400, detail="Exam center name must be at most 200 characters.")
-
-    centers = db.query(ExamCenter).all()
-    if any(clean_name(c.name).casefold() == name.casefold() for c in centers):
+    others = db.query(ExamCenter).filter(ExamCenter.id != exclude_id) if exclude_id else db.query(ExamCenter)
+    if any(clean_name(c.name).casefold() == name.casefold() for c in others.all()):
         raise HTTPException(status_code=409, detail="An exam center with this name already exists.")
+    return name
+
+
+@router.post("/exam-centers", response_model=ExamCenterOut, status_code=status.HTTP_201_CREATED)
+def create_exam_center(payload: ExamCenterCreate, db: Session = Depends(get_db)):
+    name = _valid_center_name(db, payload.name)
+    centers = db.query(ExamCenter).all()
 
     center = ExamCenter(name=name, code=_next_center_code({c.code for c in centers}))
     db.add(center)
     db.commit()
     db.refresh(center)
     return center
+
+
+def _count_by_center(db: Session, column) -> dict[int, int]:
+    return {cid: n for cid, n in db.query(column, func.count()).group_by(column).all()}
+
+
+@router.get("/exam-centers/overview", response_model=list[ExamCenterOverview])
+def exam_centers_overview(db: Session = Depends(get_db)):
+    students = _count_by_center(db, Student.exam_center_id)
+    teachers = _count_by_center(db, User.exam_center_id)
+    scans = _count_by_center(db, Scan.exam_center_id)
+    cards = {
+        cid: n
+        for cid, n in db.query(Student.exam_center_id, func.count())
+        .join(HallTicket, HallTicket.student_id == Student.id)
+        .group_by(Student.exam_center_id)
+        .all()
+    }
+    result = []
+    for c in db.query(ExamCenter).order_by(ExamCenter.id).all():
+        s, t, sc = students.get(c.id, 0), teachers.get(c.id, 0), scans.get(c.id, 0)
+        result.append(
+            ExamCenterOverview(
+                id=c.id,
+                name=c.name,
+                code=c.code,
+                student_count=s,
+                admit_card_count=cards.get(c.id, 0),
+                teacher_count=t,
+                scan_count=sc,
+                can_delete=s == 0 and t == 0 and sc == 0,
+            )
+        )
+    return result
+
+
+@router.put("/exam-centers/{center_id}", response_model=ExamCenterSaveResult)
+def update_exam_center(center_id: int, payload: ExamCenterUpdate, db: Session = Depends(get_db)):
+    """Renames a center. Admit cards of its students show the new name from
+    their next view/download (same QR code, so printed cards still scan)."""
+    center = db.get(ExamCenter, center_id)
+    if center is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exam center not found")
+    name = _valid_center_name(db, payload.name, exclude_id=center_id)
+
+    stale_pdfs: list[str] = []
+    if name != center.name:
+        students = (
+            db.query(Student)
+            .options(joinedload(Student.hall_ticket))
+            .filter(Student.exam_center_id == center_id)
+            .all()
+        )
+        for student in students:
+            pdf = mark_ticket_outdated(student)
+            if pdf:
+                stale_pdfs.append(pdf)
+        center.name = name
+    db.commit()
+    for pdf in stale_pdfs:
+        discard_ticket_pdf(pdf)
+    db.refresh(center)
+    return ExamCenterSaveResult(center=ExamCenterOut.model_validate(center), admit_cards_updated=len(stale_pdfs))
+
+
+@router.delete("/exam-centers/{center_id}", response_model=DeleteResult)
+def delete_exam_center(center_id: int, db: Session = Depends(get_db)):
+    """Deletes a center only when nothing uses it: no students, no teacher
+    accounts and no attendance history — so nothing is ever lost by accident."""
+    center = db.get(ExamCenter, center_id)
+    if center is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exam center not found")
+    students = db.query(Student).filter(Student.exam_center_id == center_id).count()
+    teachers = db.query(User).filter(User.exam_center_id == center_id).count()
+    scans = db.query(Scan).filter(Scan.exam_center_id == center_id).count()
+    if students or teachers or scans:
+        parts = []
+        if students:
+            parts.append(f"{students} student{'s' if students != 1 else ''}")
+        if teachers:
+            parts.append(f"{teachers} teacher account{'s' if teachers != 1 else ''}")
+        if scans:
+            parts.append(f"{scans} attendance record{'s' if scans != 1 else ''}")
+        hint = (
+            " Attendance history is kept permanently, so this center can't be deleted — rename it instead."
+            if scans
+            else " Move them to another center or delete them first."
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"This exam center is still in use ({', '.join(parts)}).{hint}",
+        )
+    db.delete(center)
+    db.commit()
+    return DeleteResult(deleted=1)
 
 
 @router.get("/stats", response_model=StatsResponse)

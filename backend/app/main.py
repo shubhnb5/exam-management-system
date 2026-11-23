@@ -14,7 +14,11 @@ from app.security import hash_password
 def seed_defaults():
     db = SessionLocal()
     try:
-        if db.query(ExamCenter).count() == 0:
+        # The two default centers are seeded only on a brand-new installation
+        # (no admin yet). Otherwise an admin who deleted them would see them
+        # come back on the next restart.
+        first_run = not db.query(User).filter(User.username == settings.admin_default_username).first()
+        if first_run and db.query(ExamCenter).count() == 0:
             db.add_all(
                 [
                     ExamCenter(

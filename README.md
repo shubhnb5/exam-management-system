@@ -113,7 +113,7 @@ cd frontend-student && cp .env.example .env && npm install && npm run dev  # :51
 ## First-time admin workflow
 
 1. Log into the admin dashboard with the seeded admin account.
-2. If needed, add exam centers with "+ Add Exam Center" (next to the exam center dropdown under "Upload Students").
+2. Manage exam centers under "Exam Centers" (also "+ Add Exam Center" next to the dropdown under "Upload Students"). Renaming a center updates its admit cards automatically (same QR codes). A center can only be deleted while no students, teachers or attendance records use it; with attendance history it can be renamed but not deleted.
 3. Add teacher accounts under "Teacher Devices / Accounts".
 4. Upload your Excel sheet: columns `Student Name`, `Email`, `Mobile Number`. Select the exam center for this sheet from the dropdown above the upload box — every student in the file is assigned to that center. Upload separately per center. Fix and re-upload any rows listed as skipped.
 5. Click "Generate Admit Cards".

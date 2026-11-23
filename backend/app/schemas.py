@@ -22,6 +22,29 @@ class ExamCenterCreate(BaseModel):
     name: str
 
 
+class ExamCenterUpdate(BaseModel):
+    name: str
+
+
+class ExamCenterOverview(BaseModel):
+    """An exam center with how much depends on it (for the admin's list)."""
+
+    id: int
+    name: str
+    code: str
+    student_count: int
+    admit_card_count: int
+    teacher_count: int
+    scan_count: int
+    can_delete: bool
+
+
+class ExamCenterSaveResult(BaseModel):
+    center: ExamCenterOut
+    # Admit cards that will show the new name (regenerated on next view).
+    admit_cards_updated: int = 0
+
+
 class TeacherCreate(BaseModel):
     username: str
     password: str
