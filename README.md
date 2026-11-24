@@ -5,7 +5,7 @@ QR-based hall ticket (admit card) generation and exam attendance system — auto
 ## Architecture
 
 - **Backend**: FastAPI + PostgreSQL (SQLAlchemy + Alembic). JWT auth for admins, teachers and students (student tokens carry a separate type and are rejected by admin/scanner endpoints, and vice versa).
-- **Ticket generation**: `reportlab` + `qrcode` render a personalized PDF hall ticket (candidate details, exam timetable, a Marathi rules page) with a random, unguessable QR token embedded per student. No student photos — the source Excel data has none.
+- **Ticket generation**: `reportlab` + `qrcode` render the प्रवेश प्रमाणपत्र (admit card) as a 2-page PDF that reproduces the approved sample card: header banner + QR, candidate details (बैठक क्रमांक, mobile, name, बदलेले नाव `--`, जिल्हा केंद्र, परीक्षेचे ठिकाण, photo/signature boxes), the timetable, stamp and signatory, and a Marathi instructions page. Each student gets a random, unguessable QR token. No student photos — the source Excel data has none. Devanagari is shaped with HarfBuzz; shared images are encoded once per process (`services/pdf_images.py`), so a card takes ~0.07 s.
 - **Frontend-admin**: React (Vite) — add exam centers, upload students, generate admit cards, monitor status, view registered student accounts, manage teacher accounts, live attendance stats, and a per-student attendance view (with a date picker, since the exam spans multiple dates) showing who was present/absent and who scanned them in.
 - **Frontend-scanner**: React (Vite) PWA — teacher login + camera-based QR scanning (`html5-qrcode`), full-screen glanceable pass/fail feedback.
 - **Frontend-student**: React (Vite), mobile-first — student sign up, login (mobile number + password), forgot password, and download of the student's own admit card.
@@ -17,7 +17,8 @@ QR-based hall ticket (admit card) generation and exam attendance system — auto
 - **Re-upload behavior**: upserts students by **email**. Re-uploading a sheet updates existing students, adds new ones, never duplicates. If a re-upload changes the name, mobile or center of a student who already has an admit card, the card is regenerated automatically (same QR token, so printed copies keep scanning) and the upload result lists every changed card.
 - **One mobile number = one student**: mobile numbers are stored normalized to 10 digits. Upload rows whose mobile number is invalid or already used by another student are skipped and listed in the upload result; student portal accounts are unique per mobile number too.
 - **Student portal ↔ uploaded data**: a student account is linked to the uploaded student with the same mobile number. The admit card lookup always starts from the logged-in account, never from an ID sent by the browser, so a student can only ever get their own card. Cards are visible as soon as the admin generates them.
-- **OTP**: signup requires verifying the mobile number with an OTP (the server creates the account only with a short-lived proof token), and forgot password is mobile → OTP → new password. Three providers, chosen with `OTP_PROVIDER`:
+- **OTP**: signup requires verifying the mobile number with an OTP (the server creates the account only with a short-lived proof token), and forgot password is mobile → OTP → new password. Four providers, chosen with `OTP_PROVIDER`:
+  - `startmessaging` — **StartMessaging OTP API** (India). Its non-DLT OTP route sends from a shared sender ID, so no DLT registration of your own is needed (prepaid wallet, about ₹0.25 per SMS). Needs `STARTMESSAGING_API_KEY` (`sm_live_...`); `STARTMESSAGING_TEMPLATE_ID` and `STARTMESSAGING_APP_NAME` are optional. StartMessaging only delivers the SMS: the code is generated, limited and verified by this backend exactly as for `msg91` (below). StartMessaging also limits each number to 3 OTPs per 5 minutes; hitting that shows the student "please wait 5 minutes". An empty wallet (HTTP 402) or a bad key (401) is logged clearly in the backend log.
   - `firebase` — **Google Firebase Phone Authentication** sends the SMS from Google's own approved senders (no DLT registration of your own). The backend still does the checks first (number valid, already registered / has an account) and then verifies Google's signed ID token (signature against Google's public keys, project, issuer, freshness ≤ 15 min, phone provider, +91 number matching the one being verified). Needs `FIREBASE_PROJECT_ID`, `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, a Firebase project on the Blaze plan with Phone sign-in enabled, the site's domain in Authorized domains and India allowed in the SMS region policy.
   - `msg91` — own MSG91 account with a DLT-approved template (`MSG91_AUTH_KEY`, `MSG91_TEMPLATE_ID`). Server-generated codes: 5-minute expiry, single use, 5 wrong tries, 60 s resend, 5 per number per hour, per-IP cap, stored only as a keyed hash.
   - `console` — **test mode**, no SMS (code in the backend log, and on screen with `OTP_DEV_ECHO=true`).
@@ -26,7 +27,9 @@ QR-based hall ticket (admit card) generation and exam attendance system — auto
 - **Exam center assignment**: chosen once per upload via a dropdown in the admin dashboard, not a column in the Excel sheet — every student in the uploaded file is assigned to whichever center you pick. Upload one sheet per center. Re-uploading a sheet under a different center selection moves those students to the new center.
 - **Offline handling**: v1 is online-only — the scanner shows a clear "no connection" message and the teacher retries. No offline queue/sync (this was an explicit simplicity trade-off; revisit if centers have unreliable internet in practice).
 - **Teacher accounts**: one fixed login per teacher/device, created by the admin. Revoking a lost device = deactivating that one account.
-- **Roll No.** on the ticket is just the last 7 digits of the student's mobile number — computed at render time, not stored.
+- **Seat number (बैठक क्रमांक)** = `10` + the last 5 digits of the student's mobile number (7028773531 → 1073531), computed at render time, not stored. Two students whose numbers end in the same 5 digits get the same seat number (agreed); the QR code is what identifies a student at the gate.
+- **District (जिल्हा केंद्र)** is a property of the exam center, chosen from the 36 Maharashtra districts when adding/editing a center (required). **परीक्षेचे ठिकाण** prints the exam center name exactly as entered — type the full venue with address as the center name.
+- **Card design changes apply automatically**: a cached PDF older than `ticket_template/config.json`, its images, `pdf_generator.py` or `rules_page.py` is regenerated (same QR code) on its next view/download.
 - **No email sending**: the student email from the uploaded sheet is kept for reference/records only. Students download admit cards from the student portal.
 
 ## Production notes (sized for ~5000 students)
@@ -61,7 +64,9 @@ backend/               FastAPI app
     services/            excel import, PDF generation, QR, admit card lookup, rules page
   alembic/               DB migrations
 ticket_template/
-  config.json            org name, exam title, timetable, subject code, etc. — EDIT THIS to rebrand
+  config.json            exam name, timetable rows, signatory, footer, page-2 notes/instructions (**bold** marks bold phrases)
+  header_banner.jpg      card header (logo, name, address, contact) — from the approved sample
+  stamp.jpg, photo_placeholder.jpg
   logo.png               drop your logo here (falls back to a placeholder circle if absent)
   fonts/                 Noto Sans + Noto Sans Devanagari (bundled, open source, supports Marathi text)
 frontend-admin/         React admin dashboard
@@ -80,7 +85,8 @@ Copy `.env.example` to `.env` at the repo root and fill in:
 - `FIELD_ENCRYPTION_KEY` — generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. Set it once and never change it (changing it makes stored Aadhaar numbers unreadable).
 - `ADMIN_DEFAULT_PASSWORD` — change this from the default before going live
 
-Edit `ticket_template/config.json` for your actual org name, exam title, subject code, timetable, signatory, and (optionally) website/Telegram handle. Drop your logo at `ticket_template/logo.png`.
+Edit `ticket_template/config.json` for the exam name, timetable (one entry per exam date; `
+` starts a new line inside a cell), signatory, footer and the page-2 text. Replace `header_banner.jpg` / `stamp.jpg` to change the header or stamp. Existing cards pick up the change on their next view/download.
 
 ### 2. Run everything with Docker (recommended for production/self-hosting)
 
@@ -117,7 +123,7 @@ cd frontend-student && cp .env.example .env && npm install && npm run dev  # :51
 ## First-time admin workflow
 
 1. Log into the admin dashboard with the seeded admin account.
-2. Manage exam centers under "Exam Centers" (also "+ Add Exam Center" next to the dropdown under "Upload Students"). Renaming a center updates its admit cards automatically (same QR codes). A center can only be deleted while no students, teachers or attendance records use it; with attendance history it can be renamed but not deleted.
+2. Manage exam centers under "Exam Centers" (also "+ Add Exam Center" next to the dropdown under "Upload Students"). Every center needs a district (dropdown of the 36 Maharashtra districts); centers created before this show "Not set — edit to add". Renaming a center or changing its district updates its admit cards automatically (same QR codes). A center can only be deleted while no students, teachers or attendance records use it; with attendance history it can be renamed but not deleted.
 3. Add teacher accounts under "Teacher Devices / Accounts".
 4. Upload your Excel sheet: columns `Student Name`, `Email`, `Mobile Number`. Select the exam center for this sheet from the dropdown above the upload box — every student in the file is assigned to that center. Upload separately per center. Fix and re-upload any rows listed as skipped.
 5. Click "Generate Admit Cards".
@@ -131,7 +137,7 @@ Teachers log into the scanner PWA with their own account and start scanning — 
 
 - No database backup strategy yet — attendance records are currently only as safe as the Postgres volume.
 - No HTTPS/TLS setup — required before real phones can grant camera access to the scanner PWA off `localhost`. Needs a reverse proxy (e.g. Caddy for automatic HTTPS) or a tunnel for testing.
-- OTP SMS needs a live MSG91 account with DLT registration; until then the backend runs in OTP test mode (`OTP_PROVIDER=console`), where no SMS is sent.
+- OTP SMS needs a live provider account (StartMessaging with wallet balance, MSG91 with DLT registration, or a Firebase Blaze project); until then the backend runs in OTP test mode (`OTP_PROVIDER=console`), where no SMS is sent.
 - Login/forgot-password throttling is in-memory, i.e. per backend process and reset on restart.
 - No exportable final attendance record (CSV/Excel) for post-exam institutional record-keeping — the admin dashboard's Attendance view is live/on-screen only.
 - No automated test suite yet — validated via live manual/scripted testing against a real Postgres instance (schema constraints, Excel upload, ticket generation, concurrent scan race-safety) and a real browser (Playwright) for both React apps.

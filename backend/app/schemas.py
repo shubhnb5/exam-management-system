@@ -16,14 +16,17 @@ class ExamCenterOut(BaseModel):
     id: int
     name: str
     code: str
+    district: str | None = None
 
 
 class ExamCenterCreate(BaseModel):
     name: str
+    district: str = ""
 
 
 class ExamCenterUpdate(BaseModel):
     name: str
+    district: str = ""
 
 
 class ExamCenterOverview(BaseModel):
@@ -32,6 +35,7 @@ class ExamCenterOverview(BaseModel):
     id: int
     name: str
     code: str
+    district: str | None = None
     student_count: int
     admit_card_count: int
     teacher_count: int
@@ -41,7 +45,7 @@ class ExamCenterOverview(BaseModel):
 
 class ExamCenterSaveResult(BaseModel):
     center: ExamCenterOut
-    # Admit cards that will show the new name (regenerated on next view).
+    # Admit cards that will show the new name/district (regenerated on next view).
     admit_cards_updated: int = 0
 
 
@@ -245,7 +249,7 @@ class OtpSendResponse(BaseModel):
     test_mode: bool
     # Only in test mode with OTP_DEV_ECHO=true, so the OTP can be shown on screen.
     dev_otp: str | None = None
-    # "sms": the server sent the OTP (MSG91 / test mode), verify with /verify-otp.
+    # "sms": the server sent the OTP (StartMessaging / MSG91 / test mode), verify with /verify-otp.
     # "firebase": the browser must now ask Firebase to send the OTP, then send
     #             the resulting Firebase ID token to /verify-firebase.
     channel: str = "sms"

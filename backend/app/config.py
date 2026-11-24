@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     #            log (and returned to the browser if OTP_DEV_ECHO is true).
     # "msg91":   real SMS through MSG91's OTP API (needs DLT registration and
     #            an approved OTP template in the MSG91 dashboard).
+    # "startmessaging" / "firebase": see below.
     otp_provider: str = "console"
     otp_dev_echo: bool = False
     otp_expiry_minutes: int = 5
@@ -37,6 +38,15 @@ class Settings(BaseSettings):
     msg91_auth_key: str = ""
     msg91_template_id: str = ""
     msg91_otp_url: str = "https://control.msg91.com/api/v5/otp"
+    # "startmessaging": real SMS through StartMessaging's OTP API (India). Their
+    # non-DLT OTP route sends from a shared sender ID, so no DLT registration of
+    # our own is needed. Only delivery is delegated: the code is generated,
+    # expired, attempt-limited and checked here, exactly as for msg91.
+    # API key: app.startmessaging.com -> API Keys -> Create API Key (sm_live_...).
+    startmessaging_api_key: str = ""
+    startmessaging_template_id: str = ""  # optional
+    startmessaging_app_name: str = ""  # optional, sent as the "appName" variable
+    startmessaging_otp_url: str = "https://api.startmessaging.com/otp/send"
     # "firebase": Google Firebase Phone Authentication sends the SMS (Google's
     # own approved senders - no DLT registration of our own needed). The
     # browser does the OTP with Firebase; the backend verifies Google's signed

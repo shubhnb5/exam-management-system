@@ -50,7 +50,7 @@ from app.services.student_records import (
 from app.services.ticket_batch import generate_tickets_for_all
 from app.services.ticket_files import discard_ticket_pdf, ensure_ticket_pdf_on_disk
 from app.timeutils import ist_today
-from app.validators import clean_name, mask_aadhaar
+from app.validators import canonical_district, clean_name, mask_aadhaar
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 
@@ -296,12 +296,20 @@ def _valid_center_name(db: Session, raw: str, exclude_id: int | None = None) -> 
     return name
 
 
+def _valid_district(raw: str) -> str:
+    district = canonical_district(raw)
+    if district is None:
+        raise HTTPException(status_code=400, detail="Please select the district of the exam center.")
+    return district
+
+
 @router.post("/exam-centers", response_model=ExamCenterOut, status_code=status.HTTP_201_CREATED)
 def create_exam_center(payload: ExamCenterCreate, db: Session = Depends(get_db)):
     name = _valid_center_name(db, payload.name)
+    district = _valid_district(payload.district)
     centers = db.query(ExamCenter).all()
 
-    center = ExamCenter(name=name, code=_next_center_code({c.code for c in centers}))
+    center = ExamCenter(name=name, code=_next_center_code({c.code for c in centers}), district=district)
     db.add(center)
     db.commit()
     db.refresh(center)
@@ -332,6 +340,7 @@ def exam_centers_overview(db: Session = Depends(get_db)):
                 id=c.id,
                 name=c.name,
                 code=c.code,
+                district=c.district,
                 student_count=s,
                 admit_card_count=cards.get(c.id, 0),
                 teacher_count=t,
@@ -344,15 +353,17 @@ def exam_centers_overview(db: Session = Depends(get_db)):
 
 @router.put("/exam-centers/{center_id}", response_model=ExamCenterSaveResult)
 def update_exam_center(center_id: int, payload: ExamCenterUpdate, db: Session = Depends(get_db)):
-    """Renames a center. Admit cards of its students show the new name from
-    their next view/download (same QR code, so printed cards still scan)."""
+    """Renames a center / changes its district. Admit cards of its students
+    show the change from their next view/download (same QR code, so printed
+    cards still scan)."""
     center = db.get(ExamCenter, center_id)
     if center is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exam center not found")
     name = _valid_center_name(db, payload.name, exclude_id=center_id)
+    district = _valid_district(payload.district)
 
     stale_pdfs: list[str] = []
-    if name != center.name:
+    if name != center.name or district != center.district:
         students = (
             db.query(Student)
             .options(joinedload(Student.hall_ticket))
@@ -364,6 +375,7 @@ def update_exam_center(center_id: int, payload: ExamCenterUpdate, db: Session = 
             if pdf:
                 stale_pdfs.append(pdf)
         center.name = name
+        center.district = district
     db.commit()
     for pdf in stale_pdfs:
         discard_ticket_pdf(pdf)

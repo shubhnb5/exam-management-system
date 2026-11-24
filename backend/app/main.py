@@ -24,8 +24,9 @@ def seed_defaults():
                     ExamCenter(
                         name="शि.प्र.मंडळीची नु. म. वि मुलींची प्रशाला व कनिष्ठ महाविद्यालय पुणे.",
                         code="CENTER_A",
+                        district="Pune",
                     ),
-                    ExamCenter(name="Biology Building, Sir Parashurambhau College, Pune", code="CENTER_B"),
+                    ExamCenter(name="Biology Building, Sir Parashurambhau College, Pune", code="CENTER_B", district="Pune"),
                 ]
             )
             db.commit()
@@ -66,10 +67,13 @@ def warn_about_insecure_settings():
     if settings.otp_provider == "firebase":
         if not (settings.firebase_project_id and settings.firebase_api_key):
             logger.warning("OTP: OTP_PROVIDER=firebase but FIREBASE_PROJECT_ID / FIREBASE_API_KEY are missing - OTP will not work.")
+    elif settings.otp_provider == "startmessaging":
+        if not settings.startmessaging_api_key:
+            logger.warning("OTP: OTP_PROVIDER=startmessaging but STARTMESSAGING_API_KEY is missing - OTP sending will fail.")
     elif settings.otp_provider != "msg91":
         logger.warning(
             "OTP TEST MODE (OTP_PROVIDER=%s): no SMS is sent - OTPs only appear in this log%s. "
-            "Set OTP_PROVIDER=msg91 with MSG91_AUTH_KEY and MSG91_TEMPLATE_ID before real students register.",
+            "Set OTP_PROVIDER=startmessaging (STARTMESSAGING_API_KEY), msg91 or firebase before real students register.",
             settings.otp_provider,
             " and on screen (OTP_DEV_ECHO=true)" if settings.otp_dev_echo else "",
         )

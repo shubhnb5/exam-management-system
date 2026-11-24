@@ -164,6 +164,34 @@ button:focus-visible {
   line-height: 1.15;
 }
 
+/* Official logo on a white tile (the artwork has a white background). */
+.brand-logo {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 1px rgba(242, 169, 59, 0.55),
+    0 6px 18px rgba(0, 0, 0, 0.28);
+}
+
+.brand-logo img {
+  display: block;
+  height: 48px;
+  width: auto;
+}
+
+.auth-brand {
+  gap: 14px;
+}
+
+.auth-brand .brand-name {
+  font-size: 21px;
+}
+
 .brand-sub {
   font-family: var(--font-mono);
   font-size: 10.5px;
@@ -1130,6 +1158,14 @@ form {
     padding: 40px 40px 100px;
   }
 
+  .auth-brand .brand-logo img {
+    height: 56px;
+  }
+
+  .auth-brand .brand-name {
+    font-size: 23px;
+  }
+
   .auth-main {
     margin-top: -70px;
   }
@@ -1170,6 +1206,18 @@ form {
 
   .auth-steps {
     display: block;
+  }
+
+  .auth-brand {
+    gap: 16px;
+  }
+
+  .auth-brand .brand-logo img {
+    height: 64px;
+  }
+
+  .auth-brand .brand-name {
+    font-size: 25px;
   }
 
   .auth-main {

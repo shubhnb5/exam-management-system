@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import api from "../api";
+import { DistrictOptions } from "../districts";
 import AddExamCenterButton from "./AddExamCenterButton";
 import CollapsibleCard from "./CollapsibleCard";
 import Icon from "./Icon";
@@ -20,6 +21,7 @@ function usageText(c) {
 
 function EditCenterModal({ center, onClose, onSaved }) {
   const [name, setName] = useState(center.name);
+  const [district, setDistrict] = useState(center.district || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -30,10 +32,14 @@ function EditCenterModal({ center, onClose, onSaved }) {
       setError("Exam center name must be at least 3 characters.");
       return;
     }
+    if (!district) {
+      setError("Please select the district of the exam center.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
-      const res = await api.put(`/admin/exam-centers/${center.id}`, { name: trimmed });
+      const res = await api.put(`/admin/exam-centers/${center.id}`, { name: trimmed, district });
       onSaved(res.data);
     } catch (err) {
       setError(err.response?.data?.detail || "Could not save the exam center.");
@@ -47,8 +53,8 @@ function EditCenterModal({ center, onClose, onSaved }) {
       <form className="modal-form" onSubmit={submit}>
         <p className="modal-message">
           {center.admit_card_count > 0
-            ? `${plural(center.admit_card_count, "admit card")} at this center will show the new name automatically. QR codes don't change, so printed cards still scan.`
-            : "The new name appears everywhere this center is used."}
+            ? `${plural(center.admit_card_count, "admit card")} at this center will show the new name and district automatically. QR codes don't change, so printed cards still scan.`
+            : "The new name and district appear everywhere this center is used."}
         </p>
         <label className="field-label">
           Exam center name
@@ -63,6 +69,19 @@ function EditCenterModal({ center, onClose, onSaved }) {
             }}
           />
         </label>
+        <label className="field-label">
+          District
+          <select
+            className="modal-input"
+            value={district}
+            onChange={(e) => {
+              setDistrict(e.target.value);
+              if (error) setError("");
+            }}
+          >
+            <DistrictOptions />
+          </select>
+        </label>
         {error && (
           <div className="error-banner" role="alert">
             <Icon name="alert" size={18} />
@@ -73,7 +92,7 @@ function EditCenterModal({ center, onClose, onSaved }) {
           <button type="button" className="btn-small" onClick={onClose} disabled={busy}>
             Cancel
           </button>
-          <button type="submit" className="btn-small btn-primary" disabled={busy || !name.trim()}>
+          <button type="submit" className="btn-small btn-primary" disabled={busy || !name.trim() || !district}>
             {busy ? "Saving..." : "Save changes"}
           </button>
         </div>
@@ -138,7 +157,7 @@ export default function ExamCentersPanel({ onChanged }) {
       title={`Exam Centers${centers ? ` (${centers.length})` : ""}`}
       icon="building"
       headerExtra={<AddExamCenterButton onAdded={afterChange} />}
-      description="Rename a center at any time — its admit cards update automatically. A center can be deleted only when no students, teachers or attendance records use it."
+      description="Rename a center or change its district at any time — its admit cards update automatically. A center can be deleted only when no students, teachers or attendance records use it."
     >
       {error && (
         <div className="error-banner" role="alert">
@@ -155,6 +174,7 @@ export default function ExamCentersPanel({ onChanged }) {
             <thead>
               <tr>
                 <th>Exam Center</th>
+                <th>District</th>
                 <th>Code</th>
                 <th>Students</th>
                 <th>Admit Cards</th>
@@ -165,7 +185,7 @@ export default function ExamCentersPanel({ onChanged }) {
             <tbody>
               {centers.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="empty-state">
+                  <td colSpan={7} className="empty-state">
                     <div className="empty-state-icon">
                       <Icon name="building" size={24} />
                     </div>
@@ -177,6 +197,9 @@ export default function ExamCentersPanel({ onChanged }) {
                 <tr key={c.id}>
                   <td className="cell-primary cell-wrap" data-label="Exam Center">
                     {c.name}
+                  </td>
+                  <td data-label="District">
+                    {c.district || <span className="muted">Not set — edit to add</span>}
                   </td>
                   <td className="cell-mono" data-label="Code">
                     {c.code}
@@ -224,7 +247,7 @@ export default function ExamCentersPanel({ onChanged }) {
             setEditing(null);
             showToast(
               result.admit_cards_updated
-                ? `Saved. ${plural(result.admit_cards_updated, "admit card")} updated with the new name.`
+                ? `Saved. ${plural(result.admit_cards_updated, "admit card")} updated.`
                 : "Exam center saved.",
               "success"
             );
