@@ -16,6 +16,7 @@ cells, and `ShapedParagraphFlowable` for multi-line word-wrapped paragraphs
 """
 
 import re
+import threading
 from functools import lru_cache
 from io import BytesIO
 
@@ -40,6 +41,13 @@ _MIN_RENDER_PX = 48
 
 def _render_px_for(font_size_pt: float) -> int:
     return max(_MIN_RENDER_PX, min(_RENDER_PX, round(font_size_pt * _TARGET_DPI / 72)))
+
+# FreeType faces (and the shared HarfBuzz fonts) are not thread-safe: two
+# threads loading glyphs from the same face at once corrupt the heap and
+# crash the whole process. Admit cards are built by the background job and
+# by student downloads at the same time, so all shaping/rasterizing goes
+# through this lock. Results are cached, so it is rarely contended.
+_FONT_LOCK = threading.RLock()
 
 _hb_font_cache: dict[str, tuple[hb.Font, int]] = {}
 _ft_face_cache: dict[str, freetype.Face] = {}
@@ -75,6 +83,11 @@ def _shape_to_mask(text: str, font_path: str, render_px: int = _RENDER_PX) -> tu
     (alpha) image at `render_px` pixels per em. Returns (image,
     baseline_offset_px) where baseline_offset_px is the distance from the
     image's top edge down to the text baseline."""
+    with _FONT_LOCK:
+        return _shape_to_mask_locked(text, font_path, render_px)
+
+
+def _shape_to_mask_locked(text: str, font_path: str, render_px: int) -> tuple[Image.Image, float]:
     hb_font, upem = _get_hb_font(font_path)
     ft_face = _get_ft_face(font_path)
     ft_face.set_pixel_sizes(0, render_px)
@@ -152,12 +165,13 @@ def measure_shaped_width_pt(text: str, font_path: str, font_size_pt: float) -> f
     """Shapes `text` and returns its advance width in points, without
     rasterizing — used for word-wrapping, where many candidate line widths
     need to be checked before settling on where to actually break."""
-    hb_font, upem = _get_hb_font(font_path)
-    buf = hb.Buffer()
-    buf.add_str(text)
-    buf.guess_segment_properties()
-    hb.shape(hb_font, buf)
-    total_units = sum(pos.x_advance for pos in buf.glyph_positions)
+    with _FONT_LOCK:
+        hb_font, upem = _get_hb_font(font_path)
+        buf = hb.Buffer()
+        buf.add_str(text)
+        buf.guess_segment_properties()
+        hb.shape(hb_font, buf)
+        total_units = sum(pos.x_advance for pos in buf.glyph_positions)
     return (total_units / upem) * font_size_pt
 
 

@@ -1,24 +1,30 @@
 {
-  "org_name": "COMBINE MENTOR OFFICIAL",
-  "org_tagline": "Vision of Every Aspirant's",
-  "org_address": "Combine Mentor Official, Geetai Apartment, 1st Floor, Hatti Ganpati Chowk, Sadashiv Peth, Pune 30",
-  "logo_path": "logo.jpeg",
-  "signature_path": null,
-  "exam_title": "संयुक्त गट 'क'पूर्व परीक्षा 2026",
-  "subject_code": "1122",
+  "header_image_path": "header_banner.jpg",
+  "stamp_path": "stamp.jpg",
+  "photo_placeholder_path": "photo_placeholder.jpg",
+  "exam_title": "परीक्षेचे नाव : महाराष्ट्र गट-क सेवा संयुक्त पूर्व परीक्षा - 2026",
+  "seat_prefix": "10",
+  "signatory_name": "Ganesh Pawar",
   "signatory_title": "INCHARGE OF TEST SERIES",
-  "signatory_name": null,
-  "signatory_signature_path": "signatory_signature.png",
-  "signatory_org_line": "Combine Mentor Official, Pune",
-  "website": null,
-  "telegram_handle": null,
-  "timetable": [
-    { "subject": "Comprehensive Test 1", "date": "23-08-2026", "time": "11:00 AM - 12:00 PM" },
-    { "subject": "Comprehensive Test 2", "date": "30-08-2026", "time": "11:00 AM - 12:00 PM" },
-    { "subject": "Comprehensive Test 3", "date": "06-09-2026", "time": "11:00 AM - 12:00 PM" },
-    { "subject": "Comprehensive Test 4", "date": "13-09-2026", "time": "11:00 AM - 12:00 PM" },
-    { "subject": "Comprehensive Test 5", "date": "27-09-2026", "time": "11:00 AM - 12:00 PM" },
-    { "subject": "Comprehensive Test 6", "date": "04-10-2026", "time": "11:00 AM - 12:00 PM" },
-    { "subject": "Comprehensive Test 7", "date": "11-10-2026", "time": "11:00 AM - 12:00 PM" }
+  "footer_text": "COMBINE MENTOR OFFICIAL",
+  "schedule": [
+    { "date": "रविवार, 29 नोव्हेंबर\n2026", "reporting": "सकाळी 9.30", "last_entry": "सकाळी 10.30", "duration": "सकाळी 11.00 ते\n12.00", "subject": "सामान्य\nक्षमता\nचाचणी", "subject_code": "1122", "format": "वस्तुनिष्ठ\nबहुपर्यायी" },
+    { "date": "रविवार, 6 डिसेंबर\n2026", "reporting": "सकाळी 9.30", "last_entry": "सकाळी 10.30", "duration": "सकाळी 11.00 ते\n12.00", "subject": "सामान्य\nक्षमता\nचाचणी", "subject_code": "1122", "format": "वस्तुनिष्ठ\nबहुपर्यायी" },
+    { "date": "रविवार, 13 डिसेंबर\n2026", "reporting": "सकाळी 9.30", "last_entry": "सकाळी 10.30", "duration": "सकाळी 11.00 ते\n12.00", "subject": "सामान्य\nक्षमता\nचाचणी", "subject_code": "1122", "format": "वस्तुनिष्ठ\nबहुपर्यायी" },
+    { "date": "रविवार, 27 डिसेंबर\n2026", "reporting": "सकाळी 9.30", "last_entry": "सकाळी 10.30", "duration": "सकाळी 11.00 ते\n12.00", "subject": "सामान्य\nक्षमता\nचाचणी", "subject_code": "1122", "format": "वस्तुनिष्ठ\nबहुपर्यायी" },
+    { "date": "रविवार, 3 जानेवारी\n2027", "reporting": "सकाळी 9.30", "last_entry": "सकाळी 10.30", "duration": "सकाळी 11.00 ते\n12.00", "subject": "सामान्य\nक्षमता\nचाचणी", "subject_code": "1122", "format": "वस्तुनिष्ठ\nबहुपर्यायी" },
+    { "date": "रविवार, 10 जानेवारी\n2027", "reporting": "सकाळी 9.30", "last_entry": "सकाळी 10.30", "duration": "सकाळी 11.00 ते\n12.00", "subject": "सामान्य\nक्षमता\nचाचणी", "subject_code": "1122", "format": "वस्तुनिष्ठ\nबहुपर्यायी" }
+  ],
+  "important_notes": [
+    "1. प्रवेश प्रमाणपत्रावरील उपरोक्त मजकूर उमेदवाराने काळजीपूर्वक तपासणे आवश्यक असून यासंदर्भात काही अडचण/संदिग्धता असल्यास परीक्षेच्या दिनांकापूर्वीच CMO कार्यालयाशी संपर्क साधणे आवश्यक आहे.",
+    "2. भ्रमणध्वनी अथवा अन्य दूरसंचार साधने परीक्षा उपकेंद्राच्या परिसरात आणण्यास, बाळगण्यास अथवा त्याचा वापर करण्यास सक्त मनाई आहे."
+  ],
+  "instructions": [
+    "1. सर्व विद्यार्थ्यांनी **प्रवेश प्रमाणपत्राची छापील प्रत** प्रत्येक वेळी स्वतःबरोबर आणणे बंधनकारक असेल.",
+    "2. परीक्षा उपकेंद्रावरील उपस्थितीकरीता निर्धारित केलेल्या वेळेस उपस्थित राहणे आवश्यक असून अंतिम प्रवेशाकरीता निर्धारित केलेल्या वेळेनंतर उमेदवारास कोणत्याही परिस्थितीमध्ये परीक्षेस प्रवेश दिला जाणार नाही.",
+    "3. परीक्षेच्या वेळी ओळखीच्या पुराव्यासाठी **आधारकार्ड, निवडणूक आयोगाचे ओळखपत्र, पासपोर्ट, पॅनकार्ड किंवा स्मार्ट कार्ड प्रकारचे ड्रायव्हिंग लायसन्स** यापैकी कोणतेही एक मूळ ओळखपत्र दाखवणे अनिवार्य आहे. त्याशिवाय परीक्षेस प्रवेश दिला जाणार नाही.",
+    "4. परीक्षा उपकेंद्रप्रमुख, पर्यवेक्षक, समवेक्षक आदींकडून तसेच टीम CMO कडून वेळोवेळी देण्यात येणाऱ्या सूचनांचे पालन करणे आवश्यक राहील.",
+    "5. परीक्षेच्या वेळापत्रकात किंवा परीक्षा केंद्रात बदल केल्यास तशी पूर्वसूचना विद्यार्थ्यांना देण्यात येईल.",
+    "6. इतर सर्व अधिकार Combine Mentor Official कडे राखीव असतील."
   ]
 }

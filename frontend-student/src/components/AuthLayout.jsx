@@ -1,12 +1,12 @@
 import { APP_VERSION } from "../version";
-import BrandSeal from "./BrandSeal";
+import BrandLogo from "./BrandLogo";
 
 export default function AuthLayout({ title, subtitle, children, footer, beforeForm }) {
   return (
     <div className="auth-page">
       <aside className="auth-hero guilloche">
-        <div className="brand">
-          <BrandSeal size={44} />
+        <div className="brand auth-brand">
+          <BrandLogo />
           <div>
             <div className="brand-name">Combine Mentor</div>
             <div className="brand-sub">Student Portal</div>

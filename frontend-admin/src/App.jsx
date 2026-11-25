@@ -13,7 +13,7 @@ export default function App() {
   return (
     <ToastProvider>
       <DialogProvider>
-        <Router basename={import.meta.env.BASE_URL}>
+        <Router basename="/admin">
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route

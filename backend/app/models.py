@@ -24,6 +24,9 @@ class ExamCenter(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
     code: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    # District printed on admit cards (जिल्हा केंद्र). Required when adding or
+    # editing a center; nullable only for centers created before it existed.
+    district: Mapped[str | None] = mapped_column(String, nullable=True)
 
     students: Mapped[list["Student"]] = relationship(back_populates="exam_center")
     users: Mapped[list["User"]] = relationship(back_populates="exam_center")

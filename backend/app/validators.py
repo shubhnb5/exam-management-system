@@ -19,6 +19,58 @@ NAME_MAX_LENGTH = 50
 _NAME_PUNCTUATION = set(" .'-")
 
 
+# The 36 districts of Maharashtra (current official English names). An exam
+# center's district is chosen from this list and printed on admit cards.
+# Keep in sync with frontend-admin/src/districts.jsx.
+MAHARASHTRA_DISTRICTS = (
+    "Ahilyanagar",
+    "Akola",
+    "Amravati",
+    "Beed",
+    "Bhandara",
+    "Buldhana",
+    "Chandrapur",
+    "Chhatrapati Sambhajinagar",
+    "Dharashiv",
+    "Dhule",
+    "Gadchiroli",
+    "Gondia",
+    "Hingoli",
+    "Jalgaon",
+    "Jalna",
+    "Kolhapur",
+    "Latur",
+    "Mumbai City",
+    "Mumbai Suburban",
+    "Nagpur",
+    "Nanded",
+    "Nandurbar",
+    "Nashik",
+    "Palghar",
+    "Parbhani",
+    "Pune",
+    "Raigad",
+    "Ratnagiri",
+    "Sangli",
+    "Satara",
+    "Sindhudurg",
+    "Solapur",
+    "Thane",
+    "Wardha",
+    "Washim",
+    "Yavatmal",
+)
+
+
+def canonical_district(raw: str | None) -> str | None:
+    """The list spelling of `raw` (case/space-insensitive), or None."""
+    key = re.sub(r"\s+", " ", (raw or "").strip()).casefold()
+    for district in MAHARASHTRA_DISTRICTS:
+        if district.casefold() == key:
+            return district
+    return None
+
+
 def normalize_mobile(raw: object) -> str | None:
     """Returns the 10-digit Indian mobile number contained in `raw`, or None
     if it isn't one. Accepts the formats real sheets contain:

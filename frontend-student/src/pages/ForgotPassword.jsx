@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import api, { parseApiError } from "../api";
+import { confirmFirebaseOtp, firebaseErrorMessage, isFirebaseError, sendFirebaseOtp } from "../firebasePhone";
 import AuthLayout from "../components/AuthLayout";
 import { MobileField, PasswordField } from "../components/Field";
 import Icon from "../components/Icon";
@@ -22,6 +23,8 @@ export default function ForgotPassword() {
   const [errors, setErrors] = useState({});
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const confirmationRef = useRef(null); // Firebase confirmation handle (firebase channel)
+  const recaptchaRef = useRef(null);
   const secondsLeft = useCountdown(resendAt);
 
   async function sendOtp(e) {
@@ -34,11 +37,21 @@ export default function ForgotPassword() {
     setLoading(true);
     try {
       const res = await api.post("/student/forgot-password/send-otp", { mobile_number: mobile });
+      confirmationRef.current = null;
+      if (res.data.channel === "firebase") {
+        confirmationRef.current = await sendFirebaseOtp(res.data.firebase, mobile, recaptchaRef.current);
+      }
       setSendInfo(res.data);
       setResendAt(Date.now() + res.data.resend_after_seconds * 1000);
       setOtp("");
       setStep("otp");
     } catch (err) {
+      if (isFirebaseError(err)) {
+        const msg = firebaseErrorMessage(err);
+        if (step === "otp") setErrors({ otp: msg });
+        else setErrors({ mobile_number: msg });
+        return;
+      }
       const { fieldErrors, message: msg } = await parseApiError(err);
       if (step === "otp") {
         setErrors({ otp: fieldErrors.mobile_number || fieldErrors.otp || msg });
@@ -61,10 +74,21 @@ export default function ForgotPassword() {
     setMessage("");
     setLoading(true);
     try {
-      const res = await api.post("/student/forgot-password/verify-otp", { mobile_number: mobile, otp });
+      let res;
+      if (confirmationRef.current) {
+        const idToken = await confirmFirebaseOtp(confirmationRef.current, otp);
+        res = await api.post("/student/forgot-password/verify-firebase", { mobile_number: mobile, id_token: idToken });
+      } else {
+        res = await api.post("/student/forgot-password/verify-otp", { mobile_number: mobile, otp });
+      }
+      confirmationRef.current = null;
       setResetToken(res.data.reset_token);
       setStep("reset");
     } catch (err) {
+      if (isFirebaseError(err)) {
+        setErrors({ otp: firebaseErrorMessage(err) });
+        return;
+      }
       const { fieldErrors, message: msg } = await parseApiError(err);
       setErrors({ otp: fieldErrors.otp || fieldErrors.mobile_number || msg });
     } finally {
@@ -96,6 +120,7 @@ export default function ForgotPassword() {
   }
 
   function startAgain() {
+    confirmationRef.current = null;
     setStep("mobile");
     setOtp("");
     setErrors({});
@@ -112,6 +137,8 @@ export default function ForgotPassword() {
   const stepIndex = { mobile: 1, otp: 2, reset: 3 }[step];
   const stepLabel = { mobile: "Mobile number", otp: "Verify OTP", reset: "New password" }[step];
   const stepper = (
+    <>
+    <div ref={recaptchaRef} className="recaptcha-slot" aria-hidden="true" />
     <div className="stepper">
       <span className="stepper-dots" aria-hidden="true">
         {[1, 2, 3].map((n) => (
@@ -122,6 +149,7 @@ export default function ForgotPassword() {
         Step {stepIndex} of 3 · {stepLabel}
       </span>
     </div>
+    </>
   );
 
   if (step === "mobile") {

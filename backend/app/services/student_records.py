@@ -7,9 +7,9 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.models import ExamCenter, HallTicket, Student
-from app.services.pdf_generator import TicketConfig, generate_hall_ticket_pdf
+from app.services.pdf_generator import TicketConfig
 from app.services.qr_service import generate_qr_token
-from app.services.ticket_files import CONFIG_PATH
+from app.services.ticket_files import CONFIG_PATH, generate_for_student
 from app.config import settings
 from app.validators import clean_name, normalize_mobile
 
@@ -113,14 +113,7 @@ def create_ticket_for_student(db: Session, student: Student, config: TicketConfi
     # it's read back from later (e.g. a Linux production container
     # sharing the same volume/database).
     output_path = f"{settings.ticket_storage_dir.rstrip('/')}/{student.id}.pdf"
-    generate_hall_ticket_pdf(
-        output_path=output_path,
-        student_name=student.full_name,
-        mobile_number=student.mobile_number,
-        exam_center_name=student.exam_center.name,
-        qr_token=token,
-        config=config,
-    )
+    generate_for_student(output_path, student, token, config)
     ticket = HallTicket(student_id=student.id, qr_token=token, pdf_path=output_path)
     db.add(ticket)
     return ticket
