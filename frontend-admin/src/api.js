@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:8000",
+  baseURL: import.meta.env.VITE_API_URL || "https://combine-mentor.scoler.co.in/api/",
 });
 
 api.interceptors.request.use((config) => {
@@ -21,7 +21,7 @@ api.interceptors.response.use(
     if (error.response && error.response.status === 401 && !isLoginRequest) {
       localStorage.removeItem("token");
       localStorage.removeItem("role");
-      window.location.href = `${import.meta.env.BASE_URL}login`;
+      window.location.href = "/admin/login";
     }
     return Promise.reject(error);
   }

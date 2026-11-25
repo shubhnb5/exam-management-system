@@ -9,7 +9,7 @@ function ProtectedRoute({ children }) {
 
 export default function App() {
   return (
-    <Router basename={import.meta.env.BASE_URL}>
+    <Router basename="/scan">
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route

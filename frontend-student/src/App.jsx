@@ -15,7 +15,7 @@ function GuestRoute({ children }) {
 
 export default function App() {
   return (
-    <Router basename={import.meta.env.BASE_URL}>
+    <Router basename="/student">
       <Routes>
         <Route
           path="/login"
