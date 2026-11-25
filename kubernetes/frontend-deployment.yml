@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-admin-deployment
+  namespace: examflow
+  labels:
+    app: frontend-admin
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+
+  selector:
+    matchLabels:
+      app: frontend-admin
+  template:
+    metadata:
+      labels:
+        app: frontend-admin
+    spec:
+      containers:
+        - name: frontend-admin
+          image: examflow-admin-ui:1.0.0
+          envFrom:
+            - configMapRef:
+                name: frontend-admin-config
+          ports:
+            - containerPort: 80
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-scanner-deployment
+  namespace: examflow
+  labels:
+    app: frontend-scanner
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: frontend-scanner
+  template:
+    metadata:
+      labels:
+        app: frontend-scanner
+    spec:
+      containers:
+        - name: frontend-scanner
+          image: examflow-scanner-ui:1.0.0
+          envFrom:
+            - configMapRef:
+                name: frontend-scanner-config
+          ports:
+            - containerPort: 80

@@ -19,6 +19,7 @@ if __name__ == "__main__":
         exam_center_name="Center A - Ramanbaug, New English School",
         qr_token=token,
         config=config,
+        district="Pune",
     )
     print(f"QR token: {token}")
     print(f"Ticket written to: {os.path.abspath(OUTPUT_PATH)}")

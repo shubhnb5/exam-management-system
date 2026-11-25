@@ -5,8 +5,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.database import SessionLocal
 from app.models import HallTicket
-from app.services.pdf_generator import TicketConfig, generate_hall_ticket_pdf
-from app.services.ticket_files import CONFIG_PATH
+from app.services.pdf_generator import TicketConfig
+from app.services.ticket_files import CONFIG_PATH, generate_for_student
 
 if __name__ == "__main__":
     db = SessionLocal()
@@ -18,14 +18,7 @@ if __name__ == "__main__":
     for i, ticket in enumerate(tickets, 1):
         student = ticket.student
         try:
-            generate_hall_ticket_pdf(
-                output_path=ticket.pdf_path,
-                student_name=student.full_name,
-                mobile_number=student.mobile_number,
-                exam_center_name=student.exam_center.name,
-                qr_token=ticket.qr_token,
-                config=config,
-            )
+            generate_for_student(ticket.pdf_path, student, ticket.qr_token, config)
         except Exception as exc:  # noqa: BLE001
             failed.append(f"{student.email}: {exc}")
         if i % 100 == 0 or i == total:

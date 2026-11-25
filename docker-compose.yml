@@ -17,8 +17,13 @@ services:
       retries: 10
 
   backend:
-    image: examflow/backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: examflow/backend:1.0.0
     container_name: examflow-backend
+    ports:
+      - "8000:8000"
     restart: unless-stopped
     logging:
       driver: "json-file"
@@ -36,8 +41,16 @@ services:
       - ./backend/storage:/app/storage
 
   frontend-admin:
-    image: examflow/frontend-admin:latest
+    build:
+      context: ./frontend-admin
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: https://combine-mentor.scoler.co.in/api/
+        VITE_BASE_PATH: /admin/
+    image: examflow/frontend-admin:1.0.1
     container_name: examflow-frontend-admin
+    ports:
+      - "8080:80"
     env_file: ./frontend-admin/.env.example
     restart: unless-stopped
     logging:
@@ -49,8 +62,16 @@ services:
       - backend
 
   frontend-scanner:
-    image: examflow/frontend-scanner:latest
+    build:
+      context: ./frontend-scanner
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: https://combine-mentor.scoler.co.in/api/
+        VITE_BASE_PATH: /scan/
+    image: examflow/frontend-scanner:1.0.1
     container_name: examflow-frontend-scanner
+    ports:
+      - "8081:80"
     env_file: ./frontend-scanner/.env.example
     restart: unless-stopped
     logging:
@@ -62,8 +83,16 @@ services:
       - backend
 
   frontend-student:
-    image: examflow/frontend-student:latest
+    build:
+      context: ./frontend-student
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: https://combine-mentor.scoler.co.in/api/
+        VITE_BASE_PATH: /student/
+    image: examflow/frontend-student:1.0.1
     container_name: examflow-frontend-student
+    ports:
+      - "8082:80"
     env_file: ./frontend-student/.env.example
     restart: unless-stopped
     logging:

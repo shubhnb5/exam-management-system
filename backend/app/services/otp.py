@@ -5,7 +5,9 @@
 - Only a keyed HMAC of the code is stored (see field_crypto.fingerprint).
 - Abuse limits: a resend cooldown, a per-number hourly cap, a per-IP hourly
   cap (SMS costs money), and a cap on wrong guesses per code.
-- Delivery is pluggable: "console" (test mode, no SMS) or "msg91".
+- Delivery is pluggable: "console" (test mode, no SMS), "msg91" or
+  "startmessaging". (With "firebase" the browser does the OTP with Google and
+  this module is not used for sending.)
 """
 
 import json
@@ -42,7 +44,9 @@ class OtpError(Exception):
 
 
 class OtpDeliveryError(Exception):
-    pass
+    def __init__(self, message: str, rate_limited: bool = False):
+        super().__init__(message)
+        self.rate_limited = rate_limited  # the provider refused because of its own per-number limit
 
 
 # --------------------------------------------------------------- providers
@@ -80,15 +84,77 @@ def _send_msg91(mobile: str, code: str) -> None:
         raise OtpDeliveryError(f"MSG91 rejected the request: {body.get('message') or body}")
 
 
+def _error_message(body: bytes) -> str:
+    try:
+        data = json.loads(body or b"{}")
+    except ValueError:
+        return body[:200].decode("utf-8", "replace")
+    if isinstance(data, dict):
+        msg = data.get("message") or data.get("error")
+        if isinstance(msg, list):
+            msg = "; ".join(str(m) for m in msg)
+        return str(msg or data)[:300]
+    return str(data)[:300]
+
+
+def _send_startmessaging(mobile: str, code: str) -> None:
+    """StartMessaging OTP API: POST /otp/send with the code we generated.
+    StartMessaging only delivers it; verification stays on our side."""
+    if not settings.startmessaging_api_key:
+        raise OtpDeliveryError("STARTMESSAGING_API_KEY is not configured")
+    variables = {"otp": code}
+    if settings.startmessaging_app_name:
+        variables["appName"] = settings.startmessaging_app_name
+    payload = {"phoneNumber": f"+91{mobile}", "variables": variables}
+    if settings.startmessaging_template_id:
+        payload["templateId"] = settings.startmessaging_template_id
+    request = urllib.request.Request(
+        settings.startmessaging_otp_url,
+        data=json.dumps(payload).encode(),
+        method="POST",
+        headers={
+            "X-API-Key": settings.startmessaging_api_key,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+    )
+    try:
+        # No automatic retry: a timed-out request may still have sent the SMS.
+        with urllib.request.urlopen(request, timeout=15) as response:
+            body = json.loads(response.read() or b"{}")
+    except urllib.error.HTTPError as exc:
+        detail = _error_message(exc.read())
+        hint = {
+            401: " (STARTMESSAGING_API_KEY is wrong or revoked)",
+            402: " (StartMessaging wallet balance is empty - top up at app.startmessaging.com)",
+            429: " (StartMessaging rate limit)",
+        }.get(exc.code, "")
+        raise OtpDeliveryError(
+            f"StartMessaging HTTP {exc.code}{hint}: {detail}", rate_limited=exc.code == 429
+        ) from exc
+    except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+        raise OtpDeliveryError(f"StartMessaging request failed: {exc}") from exc
+    if not isinstance(body, dict) or body.get("success") is False:
+        raise OtpDeliveryError(f"StartMessaging rejected the request: {_error_message(json.dumps(body).encode())}")
+    data = body.get("data") if isinstance(body.get("data"), dict) else {}
+    logger.info(
+        "OTP sent via StartMessaging to +91 %s (otpRequestId=%s, messageId=%s, status=%s)",
+        mobile,
+        data.get("otpRequestId"),
+        data.get("messageId"),
+        data.get("status"),
+    )
+
+
+_SMS_PROVIDERS = {"msg91": _send_msg91, "startmessaging": _send_startmessaging}
+
+
 def _deliver(mobile: str, code: str) -> None:
-    if settings.otp_provider == "msg91":
-        _send_msg91(mobile, code)
-    else:
-        _send_console(mobile, code)
+    _SMS_PROVIDERS.get(settings.otp_provider, _send_console)(mobile, code)
 
 
 def is_test_mode() -> bool:
-    return settings.otp_provider != "msg91"
+    return settings.otp_provider not in (*_SMS_PROVIDERS, "firebase")
 
 
 # ------------------------------------------------------------------- logic
@@ -141,6 +207,10 @@ def send_otp(db: Session, mobile: str, purpose: str, client_ip: str | None) -> d
         _deliver(mobile, code)
     except OtpDeliveryError as exc:
         logger.error("OTP delivery failed for %s: %s", mobile, exc)
+        if exc.rate_limited:
+            raise OtpError(
+                429, "Too many OTP requests for this number. Please wait 5 minutes and try again.", "mobile_number"
+            )
         raise OtpError(502, "Could not send the OTP right now. Please try again in a minute.", "mobile_number")
     _ip_throttle.record_failure(ip_key)
 

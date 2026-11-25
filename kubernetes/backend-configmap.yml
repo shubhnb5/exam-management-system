@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: examflow
+data:
+  SMTP_HOST: smtpout.secureserver.net
+  MAIL_FROM: no-reply@scoler.co.in
+  SMTP_FROM_NAME: Combine_Mentor
+  SMTP_USERNAME: no-reply@scoler.co.in
+  ADMIN_DEFAULT_PASSWORD: admin
+  MAIL_FROM_NAME: ExamFlow
+  JWT_EXPIRE_MINUTES: "720"
+  JWT_SECRET_KEY: changeme
+  SMTP_SECURE: "true"
+  POSTGRES_USER: examflow
+  POSTGRES_DB: examflow
+  POSTGRES_PASSWORD: examflow
+  DATABASE_URL: postgresql+psycopg2://examflow:examflow@db:5432/examflow
+  SMTP_APP_PASSWORD: Salil@2953
+  TICKET_STORAGE_DIR: ./storage/tickets
+  JWT_ALGORITHM: HS256
+  ADMIN_DEFAULT_USERNAME: admin
+  SMTP_PORT: "465"

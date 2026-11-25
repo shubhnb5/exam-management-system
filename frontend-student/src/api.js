@@ -2,7 +2,7 @@ import axios from "axios";
 import { clearSession, getToken } from "./auth";
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "/api",
+  baseURL: import.meta.env.VITE_API_URL || "https://combine-mentor.scoler.co.in/api/",
 });
 
 api.interceptors.request.use((config) => {
@@ -22,7 +22,7 @@ api.interceptors.response.use(
     const url = error.config?.url || "";
     if (error.response?.status === 401 && getToken() && !url.includes("/student/login")) {
       clearSession();
-      window.location.href = `${import.meta.env.BASE_URL}login?expired=1`;
+      window.location.href = "/student/login?expired=1";
     }
     return Promise.reject(error);
   }
