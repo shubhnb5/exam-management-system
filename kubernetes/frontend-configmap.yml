@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-admin-config
+  namespace: examflow
+data:
+  VITE_API_URL: http://backend-service:8000
+  VITE_BASE_PATH: /admin/
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-scanner-config
+  namespace: examflow
+data:
+  VITE_API_URL: http://backend-service:8000
+  VITE_BASE_PATH: /scan/
