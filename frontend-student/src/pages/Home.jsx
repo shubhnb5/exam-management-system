@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import api, { parseApiError } from "../api";
 import { clearSession } from "../auth";
-import BrandSeal from "../components/BrandSeal";
+import BrandLogo from "../components/BrandLogo";
 import Icon from "../components/Icon";
 import { APP_VERSION } from "../version";
 
@@ -163,7 +163,7 @@ export default function Home() {
     <div className="home-page">
       <header className="topbar">
         <div className="topbar-brand">
-          <BrandSeal size={34} />
+          <BrandLogo className="topbar-logo" />
           <div>
             <div className="brand-name">Combine Mentor</div>
             <div className="brand-sub">Student Portal</div>
