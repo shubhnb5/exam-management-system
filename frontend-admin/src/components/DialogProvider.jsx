@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useRef, useState } from "react";
 import Modal from "./Modal";
+import PasswordInput from "./PasswordInput";
 
 const DialogContext = createContext(null);
 
@@ -33,21 +34,27 @@ export function DialogProvider({ children }) {
       {state && (
         <Modal title={state.title} onClose={() => finish(state.kind === "prompt" ? null : false)}>
           {state.message && <p className="modal-message">{state.message}</p>}
-          {state.kind === "prompt" && (
-            <input
-              type={state.inputType || "text"}
-              className="modal-input"
-              autoFocus
-              defaultValue={state.defaultValue || ""}
-              placeholder={state.inputLabel}
-              onChange={(e) => {
-                inputValue.current = e.target.value;
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") finish(inputValue.current);
-              }}
-            />
-          )}
+          {state.kind === "prompt" &&
+            (() => {
+              const inputProps = {
+                className: "modal-input",
+                autoFocus: true,
+                defaultValue: state.defaultValue || "",
+                placeholder: state.inputLabel,
+                onChange: (e) => {
+                  inputValue.current = e.target.value;
+                },
+                onKeyDown: (e) => {
+                  if (e.key === "Enter") finish(inputValue.current);
+                },
+              };
+              // Password prompts get the Show / Hide button.
+              return state.inputType === "password" ? (
+                <PasswordInput {...inputProps} autoComplete="new-password" />
+              ) : (
+                <input type={state.inputType || "text"} {...inputProps} />
+              );
+            })()}
           <div className="modal-actions">
             <button
               type="button"

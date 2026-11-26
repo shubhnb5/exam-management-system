@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
-import BrandSeal from "../components/BrandSeal";
+import BrandLogo from "../components/BrandLogo";
 import Icon from "../components/Icon";
 
 const READER_ID = "qr-reader";
@@ -139,7 +139,7 @@ export default function Scanner() {
     <div className="scanner-page">
       <header className="scanner-header guilloche">
         <div className="scanner-id">
-          <BrandSeal size={36} />
+          <BrandLogo className="scanner-header-logo" />
           <div>
             <div className="scanner-name">{fullName}</div>
             <div className="scanner-status">

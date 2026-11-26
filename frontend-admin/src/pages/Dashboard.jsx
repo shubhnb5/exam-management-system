@@ -12,7 +12,7 @@ import ExamCentersPanel from "../components/ExamCentersPanel";
 import Sidebar from "../components/Sidebar";
 import TabBar from "../components/TabBar";
 import Spinner from "../components/Spinner";
-import BrandSeal from "../components/BrandSeal";
+import BrandLogo from "../components/BrandLogo";
 import Icon from "../components/Icon";
 import { useToast } from "../components/ToastProvider";
 
@@ -107,7 +107,7 @@ export default function Dashboard() {
         <header className="dashboard-header">
           <div className="header-left">
             <span className="header-seal">
-              <BrandSeal size={34} />
+              <BrandLogo />
             </span>
             <div className="header-titles">
               <span className="eyebrow">

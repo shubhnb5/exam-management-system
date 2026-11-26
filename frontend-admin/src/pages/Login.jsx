@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import api from "../api";
 import { APP_VERSION } from "../version";
 import { useToast } from "../components/ToastProvider";
-import BrandSeal from "../components/BrandSeal";
+import BrandLogo from "../components/BrandLogo";
+import PasswordInput from "../components/PasswordInput";
 import Icon from "../components/Icon";
 
 export default function Login() {
@@ -47,7 +48,7 @@ export default function Login() {
       <section className="login-hero guilloche">
         <div className="login-hero-inner">
           <div className="login-brand">
-            <BrandSeal size={48} />
+            <BrandLogo className="login-logo" />
             <div>
               <div className="login-brand-name">Combine Mentor</div>
               <div className="login-brand-sub">Admin</div>
@@ -104,8 +105,7 @@ export default function Login() {
           </label>
           <label>
             Password
-            <input
-              type="password"
+            <PasswordInput
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required

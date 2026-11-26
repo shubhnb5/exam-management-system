@@ -703,6 +703,16 @@ form {
   font-size: 16px;
 }
 
+/* Logo in the signed-in top bar: about the size of the old 34px CM seal. */
+.topbar-logo {
+  padding: 3px 4px;
+  border-radius: 9px;
+}
+
+.topbar-logo img {
+  height: 30px;
+}
+
 .home-hero {
   padding: 26px 18px 84px;
   color: #f4f1ea;
@@ -1172,6 +1182,10 @@ form {
 
   .topbar {
     padding: 14px 28px;
+  }
+
+  .topbar-logo img {
+    height: 34px;
   }
 
   .home-hero {

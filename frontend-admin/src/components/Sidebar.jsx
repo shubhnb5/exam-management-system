@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { APP_VERSION } from "../version";
-import BrandSeal from "./BrandSeal";
+import BrandLogo from "./BrandLogo";
 import Icon from "./Icon";
 
 // One navigation component, three presentations (see index.css):
@@ -23,7 +23,7 @@ export default function Sidebar({ sections, active, onSelect, open, onClose, onL
       <nav className={`sidebar guilloche ${open ? "sidebar-open" : ""}`} aria-label="Sections">
         <span className="sidebar-grabber" aria-hidden="true" />
         <div className="sidebar-brand">
-          <BrandSeal size={42} className="sidebar-logo" />
+          <BrandLogo className="sidebar-logo" />
           <div className="sidebar-brand-text">
             <span className="sidebar-brand-name">Combine Mentor</span>
             <span className="sidebar-brand-sub">Admin Console</span>
