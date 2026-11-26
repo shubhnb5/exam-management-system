@@ -333,6 +333,44 @@ select[aria-invalid="true"] {
   border-color: var(--danger);
 }
 
+/* Password field with a Show / Hide button inside its right edge. The input
+   keeps the normal input styles; only room for the button is added. */
+.password-input {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.password-input > input:not([type="checkbox"]):not([type="radio"]):not([type="file"]) {
+  padding-right: 88px;
+}
+
+.password-input > button.password-toggle {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  bottom: 4px;
+  min-height: 0;
+  padding: 0 10px;
+  gap: 6px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-600);
+  font-size: 13.5px;
+  box-shadow: none;
+  transform: none;
+}
+
+.password-input > button.password-toggle:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--ink-900);
+}
+
+.password-input > button.password-toggle:active:not(:disabled) {
+  transform: none;
+}
+
 select {
   appearance: none;
   -webkit-appearance: none;
@@ -553,6 +591,15 @@ input[type="checkbox"] {
   gap: 12px;
 }
 
+.brand-logo.login-logo {
+  padding: 4px 6px;
+  border-radius: 12px;
+}
+
+.login-logo img {
+  height: 42px;
+}
+
 .login-brand-name {
   font-family: var(--font-display);
   font-weight: 650;
@@ -701,6 +748,10 @@ input[type="checkbox"] {
     margin-top: -64px;
   }
 
+  .login-logo img {
+    height: 50px;
+  }
+
   .login-card {
     padding: 34px 34px 26px;
   }
@@ -722,6 +773,10 @@ input[type="checkbox"] {
 
   .login-steps {
     display: block;
+  }
+
+  .login-logo img {
+    height: 58px;
   }
 
   .login-form-wrap {
@@ -807,6 +862,34 @@ input[type="checkbox"] {
 
 .header-seal {
   display: inline-flex;
+}
+
+/* Official Combine Mentor logo on a white tile (the artwork has a white
+   background), replacing the old CM seal. */
+.brand-logo {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 4px;
+  background: #fff;
+  border-radius: 9px;
+  box-shadow:
+    0 0 0 1px rgba(242, 169, 59, 0.55),
+    0 4px 12px rgba(11, 14, 38, 0.18);
+}
+
+.brand-logo img {
+  display: block;
+  width: auto;
+}
+
+.header-seal .brand-logo img {
+  height: 30px;
+}
+
+.sidebar-logo img {
+  height: 36px;
 }
 
 /* ----- main content */
@@ -2607,6 +2690,10 @@ table {
   .sidebar-brand {
     justify-content: flex-start;
     padding: 0 6px 18px;
+  }
+
+  .sidebar-logo img {
+    height: 40px;
   }
 
   .sidebar-brand-text {

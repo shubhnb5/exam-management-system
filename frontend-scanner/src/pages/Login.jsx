@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
 import { APP_VERSION } from "../version";
-import BrandSeal from "../components/BrandSeal";
+import BrandLogo from "../components/BrandLogo";
+import PasswordInput from "../components/PasswordInput";
 import Icon from "../components/Icon";
 
 export default function Login() {
@@ -42,7 +43,7 @@ export default function Login() {
   return (
     <div className="centered-page guilloche">
       <div className="scanner-brand">
-        <BrandSeal size={64} />
+        <BrandLogo className="scanner-login-logo" />
         <div>
           <div className="scanner-brand-name">
             Scanner
@@ -59,8 +60,7 @@ export default function Login() {
         </label>
         <label>
           Password
-          <input
-            type="password"
+          <PasswordInput
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required

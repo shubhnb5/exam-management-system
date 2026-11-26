@@ -3,6 +3,7 @@ import api from "../api";
 import CollapsibleCard from "./CollapsibleCard";
 import Icon from "./Icon";
 import Pagination from "./Pagination";
+import PasswordInput from "./PasswordInput";
 import SearchBar from "./SearchBar";
 import usePagination from "../hooks/usePagination";
 import { truncate } from "../utils/text";
@@ -210,8 +211,7 @@ export default function TeachersPanel({ teachers, centers, onChanged }) {
           </label>
           <label className="field-label">
             Password
-            <input
-              type="password"
+            <PasswordInput
               placeholder="Password"
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
