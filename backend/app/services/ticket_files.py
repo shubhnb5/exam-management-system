@@ -2,6 +2,7 @@ import os
 
 from app.models import Student
 from app.services.pdf_generator import TicketConfig, generate_hall_ticket_pdf
+from app.services.time_slots import ticket_timing
 
 _TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "ticket_template")
 CONFIG_PATH = os.path.join(_TEMPLATE_DIR, "config.json")
@@ -43,8 +44,11 @@ def _is_stale(pdf_path: str, ticket) -> bool:
     return made_at < ticket.updated_at.timestamp()
 
 
-def generate_for_student(output_path: str, student: Student, qr_token: str, config: TicketConfig) -> None:
-    """Writes `student`'s admit card PDF with the given QR token."""
+def generate_for_student(
+    output_path: str, student: Student, qr_token: str, config: TicketConfig, timing: dict | None = None
+) -> None:
+    """Writes `student`'s admit card PDF with the given QR token. `timing` is
+    the card's custom time slot timing (None = config.json's timing)."""
     generate_hall_ticket_pdf(
         output_path=output_path,
         student_name=student.full_name,
@@ -53,6 +57,7 @@ def generate_for_student(output_path: str, student: Student, qr_token: str, conf
         qr_token=qr_token,
         config=config,
         district=student.exam_center.district,
+        timing=timing,
     )
 
 
@@ -66,7 +71,7 @@ def ensure_ticket_pdf_on_disk(student: Student) -> str:
     pdf_path = ticket.pdf_path
 
     if _is_stale(pdf_path, ticket):
-        generate_for_student(pdf_path, student, ticket.qr_token, TicketConfig.load(CONFIG_PATH))
+        generate_for_student(pdf_path, student, ticket.qr_token, TicketConfig.load(CONFIG_PATH), ticket_timing(ticket))
 
     return pdf_path
 
