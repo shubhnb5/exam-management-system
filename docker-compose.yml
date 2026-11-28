@@ -12,18 +12,18 @@ services:
       - db_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-examflow}"]
-      interval: 5s
       timeout: 5s
+      interval: 10s
       retries: 10
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    image: examflow/backend:1.0.0
+    image: examflow/backend:1.1.0
     container_name: examflow-backend
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     restart: unless-stopped
     logging:
       driver: "json-file"
@@ -36,6 +36,8 @@ services:
     env_file: .env.example
     environment:
       DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-examflow}:${POSTGRES_PASSWORD:-examflow}@db:5432/${POSTGRES_DB:-examflow}
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1,::1,172.16.0.0/12}
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
     volumes:
       - ./ticket_template:/ticket_template
       - ./backend/storage:/app/storage
