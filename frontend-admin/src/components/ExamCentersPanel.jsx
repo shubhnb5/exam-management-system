@@ -6,6 +6,7 @@ import CollapsibleCard from "./CollapsibleCard";
 import Icon from "./Icon";
 import Modal from "./Modal";
 import Spinner from "./Spinner";
+import TimeSlotsModal from "./TimeSlotsModal";
 import { useDialog } from "./DialogProvider";
 import { useToast } from "./ToastProvider";
 
@@ -106,6 +107,7 @@ export default function ExamCentersPanel({ onChanged }) {
   const { showToast } = useToast();
   const [centers, setCenters] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [timingsFor, setTimingsFor] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -221,6 +223,16 @@ export default function ExamCentersPanel({ onChanged }) {
                       </button>
                       <button
                         type="button"
+                        className="btn-small"
+                        onClick={() => setTimingsFor(c)}
+                        disabled={busy}
+                        title="Exam timings printed on this center's admit cards"
+                      >
+                        <Icon name="clock" size={16} />
+                        Timings{c.time_slot_count ? ` (${c.time_slot_count})` : ""}
+                      </button>
+                      <button
+                        type="button"
                         className="btn-small btn-danger"
                         onClick={() => remove(c)}
                         disabled={busy || !c.can_delete}
@@ -255,6 +267,8 @@ export default function ExamCentersPanel({ onChanged }) {
           }}
         />
       )}
+
+      {timingsFor && <TimeSlotsModal center={timingsFor} onClose={() => setTimingsFor(null)} onChanged={load} />}
     </CollapsibleCard>
   );
 }

@@ -41,6 +41,38 @@ class ExamCenterOverview(BaseModel):
     teacher_count: int
     scan_count: int
     can_delete: bool
+    time_slot_count: int = 0
+
+
+class TimingOut(BaseModel):
+    """The three timetable columns a time slot sets on the admit card."""
+
+    reporting: str
+    last_entry: str
+    duration: str
+
+
+class TimeSlotSave(BaseModel):
+    reporting: str = ""
+    last_entry: str = ""
+    duration: str = ""
+
+
+class TimeSlotOut(BaseModel):
+    id: int
+    exam_center_id: int
+    reporting: str
+    last_entry: str
+    duration: str
+    student_count: int = 0
+    admit_card_count: int = 0
+    can_delete: bool = True
+
+
+class TimeSlotsResponse(BaseModel):
+    # config.json's timing, printed for students without a slot.
+    default: TimingOut
+    slots: list[TimeSlotOut]
 
 
 class ExamCenterSaveResult(BaseModel):
@@ -78,6 +110,7 @@ class StudentOut(BaseModel):
     mobile_number: str
     exam_center_id: int
     has_ticket: bool = False
+    time_slot_id: int | None = None
 
 
 class StudentCreate(BaseModel):
@@ -86,6 +119,8 @@ class StudentCreate(BaseModel):
     mobile_number: str
     exam_center_id: int | None = None
     generate_admit_card: bool = True
+    # Exam timing (a slot of the exam center); None = default timing.
+    time_slot_id: int | None = None
 
 
 class StudentUpdate(BaseModel):
@@ -93,6 +128,9 @@ class StudentUpdate(BaseModel):
     email: str
     mobile_number: str
     exam_center_id: int | None = None
+    # Exam timing (a slot of the exam center); None = default timing. Left
+    # out of the request = keep the student's current timing.
+    time_slot_id: int | None = None
 
 
 class StudentSaveResult(BaseModel):

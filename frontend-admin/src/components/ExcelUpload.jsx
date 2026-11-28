@@ -3,12 +3,16 @@ import api from "../api";
 import AddExamCenterButton from "./AddExamCenterButton";
 import CollapsibleCard from "./CollapsibleCard";
 import Icon from "./Icon";
-import { truncate } from "../utils/text";
+import useMediaQuery, { PHONE_QUERY } from "../hooks/useMediaQuery";
+import { timingLabel, truncate } from "../utils/text";
 import { useToast } from "./ToastProvider";
 
 export default function ExcelUpload({ centers, onUploaded, onCentersChanged }) {
   const { showToast } = useToast();
   const [examCenterId, setExamCenterId] = useState("");
+  // Exam timing for this sheet: "" = default timing, else a time slot id.
+  const [timeSlotId, setTimeSlotId] = useState("");
+  const [timings, setTimings] = useState(null); // { default, slots } from /admin/time-slots
   const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
@@ -17,6 +21,24 @@ export default function ExcelUpload({ centers, onUploaded, onCentersChanged }) {
   const pollRef = useRef(null);
 
   const centerSelected = examCenterId !== "";
+  const centerSlots = timings ? timings.slots.filter((s) => String(s.exam_center_id) === examCenterId) : [];
+  // Full text on hover; on phones (where the dropdown cuts it off with "…") also shown below it.
+  const isPhone = useMediaQuery(PHONE_QUERY);
+  const selectedSlot = centerSlots.find((s) => String(s.id) === timeSlotId);
+  const timingSelectTitle = selectedSlot
+    ? timingLabel(selectedSlot)
+    : `Default timing${timings?.default ? ` — ${timingLabel(timings.default)}` : ""}`;
+
+  // The selected center's exam timings, reloaded on every center change so
+  // timings just added under Exam Centers show up.
+  useEffect(() => {
+    setTimeSlotId("");
+    if (!centerSelected) return;
+    api
+      .get("/admin/time-slots")
+      .then((res) => setTimings(res.data))
+      .catch(() => setTimings(null));
+  }, [examCenterId, centerSelected]);
 
   // The server processes the sheet in the background (a large PDF can take
   // about a minute), so poll for the result. If an upload was already being
@@ -87,6 +109,7 @@ export default function ExcelUpload({ centers, onUploaded, onCentersChanged }) {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("exam_center_id", examCenterId);
+      if (timeSlotId !== "") formData.append("time_slot_id", timeSlotId);
       await api.post("/admin/students/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
@@ -136,6 +159,24 @@ export default function ExcelUpload({ centers, onUploaded, onCentersChanged }) {
                 setExamCenterId(String(center.id));
               }}
             />
+            {/* Always its own full-width line (phone, laptop, desktop), so the center row above keeps
+                its layout and the whole timing stays readable. */}
+            {centerSelected && (
+              <label className="center-select-label" style={{ flexBasis: "100%" }} title={timingSelectTitle}>
+                Exam timing for this sheet
+                <select value={timeSlotId} onChange={(e) => setTimeSlotId(e.target.value)} disabled={busy}>
+                  <option value="">
+                    Default timing{timings?.default ? ` — ${timingLabel(timings.default)}` : ""}
+                  </option>
+                  {centerSlots.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {timingLabel(s)}
+                    </option>
+                  ))}
+                </select>
+                {isPhone && <span className="muted cell-sub">{timingSelectTitle}</span>}
+              </label>
+            )}
           </div>
 
           <div
@@ -207,6 +248,10 @@ export default function ExcelUpload({ centers, onUploaded, onCentersChanged }) {
               different center if re-uploaded under a different selection).
             </li>
             <li>If an updated student already has an admit card, it is updated automatically.</li>
+            <li>
+              Exam timing: every student in this sheet gets the selected timing on their admit card. For several
+              batches at one center, add timings under Exam Centers → Timings and upload one sheet per timing.
+            </li>
             <li>Each mobile number can belong to only one student — students log into the student portal with it.</li>
           </ol>
         </aside>

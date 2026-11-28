@@ -11,7 +11,7 @@ from app.job_status import fail_job, finish_job, get_job, try_start_job
 from app import field_crypto
 from sqlalchemy import func
 
-from app.models import ExamCenter, HallTicket, Scan, Student, StudentAccount, Upload, User
+from app.models import ExamCenter, ExamCenterTimeSlot, HallTicket, Scan, Student, StudentAccount, Upload, User
 from app.schemas import (
     AttendanceResponse,
     AttendanceRow,
@@ -34,6 +34,10 @@ from app.schemas import (
     TeacherCreate,
     TeacherOut,
     TeacherUpdate,
+    TimeSlotOut,
+    TimeSlotSave,
+    TimeSlotsResponse,
+    TimingOut,
     UploadOut,
     UploadResult,
 )
@@ -41,24 +45,31 @@ from app.security import hash_password, require_admin
 from app.services.admit_card_lookup import admit_card_status, roster_by_mobile
 from app.services.excel_import import import_students_excel
 from app.services.student_deletion import delete_all_students, delete_students
+from app.services.pdf_generator import TicketConfig
 from app.services.student_records import (
+    assign_time_slot,
     create_ticket_for_student,
     mark_ticket_outdated,
     ticket_changes,
     validate_student_input,
 )
 from app.services.ticket_batch import generate_tickets_for_all
-from app.services.ticket_files import discard_ticket_pdf, ensure_ticket_pdf_on_disk
+from app.services.ticket_files import CONFIG_PATH, discard_ticket_pdf, ensure_ticket_pdf_on_disk
+from app.services.time_slots import default_timing, validate_timing
 from app.timeutils import ist_today
 from app.validators import canonical_district, clean_name, mask_aadhaar
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 
 
-def _run_upload_job(content: bytes, filename: str, admin_id: int, exam_center_id: int) -> None:
+def _run_upload_job(
+    content: bytes, filename: str, admin_id: int, exam_center_id: int, time_slot_id: int | None = None
+) -> None:
     db = SessionLocal()
     try:
-        upload, problems, refreshed = import_students_excel(db, content, filename, admin_id, exam_center_id)
+        upload, problems, refreshed = import_students_excel(
+            db, content, filename, admin_id, exam_center_id, time_slot_id
+        )
         result = UploadResult(upload=UploadOut.model_validate(upload), problems=problems, refreshed_tickets=refreshed)
         finish_job("upload", result.model_dump(mode="json"))
     except ValueError as exc:  # a problem with the file itself (missing columns, empty, ...)
@@ -74,21 +85,29 @@ def upload_students(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     exam_center_id: int = Form(...),
+    time_slot_id: int | None = Form(None),
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
     """Starts processing an uploaded sheet in the background; poll
     /students/upload/status for the result. A 5000-row PDF takes close to a
     minute to read (PDF table extraction is slow), which would otherwise hit
-    the reverse proxy's request timeout."""
+    the reverse proxy's request timeout.
+
+    `time_slot_id` (optional): the exam timing for every student in this
+    sheet, one of the center's time slots. Left out = default timing."""
     if not file.filename.lower().endswith((".xlsx", ".xlsm", ".csv", ".pdf", ".docx")):
         raise HTTPException(status_code=400, detail="Please upload a .xlsx, .xlsm, .csv, .pdf, or .docx file")
     if db.get(ExamCenter, exam_center_id) is None:
         raise HTTPException(status_code=400, detail="Unknown exam center.")
+    if time_slot_id is not None:
+        slot = db.get(ExamCenterTimeSlot, time_slot_id)
+        if slot is None or slot.exam_center_id != exam_center_id:
+            raise HTTPException(status_code=400, detail="Please select an exam timing of the selected exam center.")
     content = file.file.read()
     if not try_start_job("upload"):
         raise HTTPException(status_code=409, detail="Another upload is still being processed. Please wait for it to finish.")
-    background_tasks.add_task(_run_upload_job, content, file.filename, admin.id, exam_center_id)
+    background_tasks.add_task(_run_upload_job, content, file.filename, admin.id, exam_center_id, time_slot_id)
     return JobStartedResponse()
 
 
@@ -139,6 +158,7 @@ def _student_out(s: Student) -> StudentOut:
         mobile_number=s.mobile_number,
         exam_center_id=s.exam_center_id,
         has_ticket=s.hall_ticket is not None,
+        time_slot_id=s.time_slot_id,
     )
 
 
@@ -148,7 +168,7 @@ def list_students(db: Session = Depends(get_db)):
     return [_student_out(s) for s in students]
 
 
-def _validated(db: Session, payload, student_id: int | None = None) -> dict:
+def _validated(db: Session, payload, student_id: int | None = None, time_slot_id: int | None = None) -> dict:
     values, errors, conflicts = validate_student_input(
         db,
         full_name=payload.full_name,
@@ -156,6 +176,7 @@ def _validated(db: Session, payload, student_id: int | None = None) -> dict:
         mobile_number=payload.mobile_number,
         exam_center_id=payload.exam_center_id,
         student_id=student_id,
+        time_slot_id=time_slot_id,
     )
     if errors:
         raise field_errors(errors)
@@ -178,12 +199,13 @@ def _commit_or_conflict(db: Session) -> None:
 def create_student(payload: StudentCreate, db: Session = Depends(get_db)):
     """Adds one student by hand — e.g. someone missed from an uploaded sheet —
     and optionally generates their admit card straight away."""
-    values = _validated(db, payload)
+    values = _validated(db, payload, time_slot_id=payload.time_slot_id)
     student = Student(
         full_name=values["full_name"],
         email=values["email"],
         mobile_number=values["mobile_number"],
         exam_center_id=values["center"].id,
+        time_slot_id=values["time_slot"].id if values["time_slot"] else None,
     )
     db.add(student)
     _commit_or_conflict(db)
@@ -213,10 +235,19 @@ def update_student(student_id: int, payload: StudentUpdate, db: Session = Depend
     student = db.get(Student, student_id)
     if student is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
-    values = _validated(db, payload, student_id=student_id)
+    if "time_slot_id" in payload.model_fields_set:
+        time_slot_id = payload.time_slot_id
+    elif student.time_slot is not None and student.time_slot.exam_center_id == payload.exam_center_id:
+        time_slot_id = student.time_slot_id  # not sent: keep the current timing
+    else:
+        time_slot_id = None  # not sent, and moved to another center: default timing
+    values = _validated(db, payload, student_id=student_id, time_slot_id=time_slot_id)
 
-    changes = ticket_changes(student, values["full_name"], values["mobile_number"], values["center"])
+    changes = ticket_changes(
+        student, values["full_name"], values["mobile_number"], values["center"], values["time_slot"]
+    )
     stale_pdf = mark_ticket_outdated(student) if changes else None
+    assign_time_slot(student, values["time_slot"])
     student.full_name = values["full_name"]
     student.email = values["email"]
     student.mobile_number = values["mobile_number"]
@@ -325,6 +356,7 @@ def exam_centers_overview(db: Session = Depends(get_db)):
     students = _count_by_center(db, Student.exam_center_id)
     teachers = _count_by_center(db, User.exam_center_id)
     scans = _count_by_center(db, Scan.exam_center_id)
+    slots = _count_by_center(db, ExamCenterTimeSlot.exam_center_id)
     cards = {
         cid: n
         for cid, n in db.query(Student.exam_center_id, func.count())
@@ -346,6 +378,7 @@ def exam_centers_overview(db: Session = Depends(get_db)):
                 teacher_count=t,
                 scan_count=sc,
                 can_delete=s == 0 and t == 0 and sc == 0,
+                time_slot_count=slots.get(c.id, 0),
             )
         )
     return result
@@ -410,7 +443,111 @@ def delete_exam_center(center_id: int, db: Session = Depends(get_db)):
             status_code=status.HTTP_409_CONFLICT,
             detail=f"This exam center is still in use ({', '.join(parts)}).{hint}",
         )
+    # Its exam timings belong to it (no student uses them - checked above).
+    db.query(ExamCenterTimeSlot).filter(ExamCenterTimeSlot.exam_center_id == center_id).delete(
+        synchronize_session=False
+    )
     db.delete(center)
+    db.commit()
+    return DeleteResult(deleted=1)
+
+
+# --- Exam timings (time slots) -------------------------------------------------
+
+
+def _time_slot_out(slot: ExamCenterTimeSlot, students: dict[int, int], cards: dict[int, int]) -> TimeSlotOut:
+    s = students.get(slot.id, 0)
+    return TimeSlotOut(
+        id=slot.id,
+        exam_center_id=slot.exam_center_id,
+        reporting=slot.reporting,
+        last_entry=slot.last_entry,
+        duration=slot.duration,
+        student_count=s,
+        admit_card_count=cards.get(slot.id, 0),
+        can_delete=s == 0,
+    )
+
+
+def _slot_usage(db: Session) -> tuple[dict[int, int], dict[int, int]]:
+    students = _count_by_center(db, Student.time_slot_id)
+    cards = {
+        sid: n
+        for sid, n in db.query(Student.time_slot_id, func.count())
+        .join(HallTicket, HallTicket.student_id == Student.id)
+        .group_by(Student.time_slot_id)
+        .all()
+    }
+    return students, cards
+
+
+def _valid_time_slot(db: Session, center_id: int, payload: TimeSlotSave, exclude_id: int | None = None) -> dict:
+    values, errors = validate_timing(payload.reporting, payload.last_entry, payload.duration)
+    if errors:
+        raise field_errors(errors)
+    key = tuple(values[f].casefold() for f in ("reporting", "last_entry", "duration"))
+    others = db.query(ExamCenterTimeSlot).filter(ExamCenterTimeSlot.exam_center_id == center_id)
+    if exclude_id is not None:
+        others = others.filter(ExamCenterTimeSlot.id != exclude_id)
+    for other in others.all():
+        if (other.reporting.casefold(), other.last_entry.casefold(), other.duration.casefold()) == key:
+            raise HTTPException(status_code=409, detail="This exam center already has this exact timing.")
+    return values
+
+
+@router.get("/time-slots", response_model=TimeSlotsResponse)
+def list_time_slots(db: Session = Depends(get_db)):
+    """Every center's exam timings, plus the default timing (config.json)
+    that students without a timing get."""
+    students, cards = _slot_usage(db)
+    slots = db.query(ExamCenterTimeSlot).order_by(ExamCenterTimeSlot.exam_center_id, ExamCenterTimeSlot.id).all()
+    return TimeSlotsResponse(
+        default=TimingOut(**default_timing(TicketConfig.load(CONFIG_PATH))),
+        slots=[_time_slot_out(s, students, cards) for s in slots],
+    )
+
+
+@router.post(
+    "/exam-centers/{center_id}/time-slots", response_model=TimeSlotOut, status_code=status.HTTP_201_CREATED
+)
+def create_time_slot(center_id: int, payload: TimeSlotSave, db: Session = Depends(get_db)):
+    if db.get(ExamCenter, center_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exam center not found")
+    slot = ExamCenterTimeSlot(exam_center_id=center_id, **_valid_time_slot(db, center_id, payload))
+    db.add(slot)
+    db.commit()
+    db.refresh(slot)
+    return _time_slot_out(slot, {}, {})
+
+
+@router.put("/time-slots/{slot_id}", response_model=TimeSlotOut)
+def update_time_slot(slot_id: int, payload: TimeSlotSave, db: Session = Depends(get_db)):
+    """Changes a timing. Admit cards already generated keep the timing they
+    were made with; only cards generated afterwards use the new one."""
+    slot = db.get(ExamCenterTimeSlot, slot_id)
+    if slot is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exam timing not found")
+    for field_name, value in _valid_time_slot(db, slot.exam_center_id, payload, exclude_id=slot_id).items():
+        setattr(slot, field_name, value)
+    db.commit()
+    db.refresh(slot)
+    students, cards = _slot_usage(db)
+    return _time_slot_out(slot, students, cards)
+
+
+@router.delete("/time-slots/{slot_id}", response_model=DeleteResult)
+def delete_time_slot(slot_id: int, db: Session = Depends(get_db)):
+    slot = db.get(ExamCenterTimeSlot, slot_id)
+    if slot is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exam timing not found")
+    used = db.query(Student).filter(Student.time_slot_id == slot_id).count()
+    if used:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"This exam timing is used by {used} student{'s' if used != 1 else ''}. "
+            "Re-upload their sheet with another timing, or delete them first.",
+        )
+    db.delete(slot)
     db.commit()
     return DeleteResult(deleted=1)
 

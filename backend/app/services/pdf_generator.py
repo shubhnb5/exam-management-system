@@ -196,6 +196,8 @@ TT_HEADERS = [
     ["परीक्षेचे स्वरूप"],
 ]
 TT_FIELDS = ["date", "reporting", "last_entry", "duration", "subject", "subject_code", "format"]
+# The timetable columns a center's custom time slot replaces (in every row).
+TIMING_FIELDS = ("reporting", "last_entry", "duration")
 TT_BOLD_SIZE, TT_BOLD_LEADING, TT_BOLD_OFFSET = 9.49, 12.0, 1.87
 TT_SERIF_SIZE, TT_SERIF_LEADING, TT_SERIF_OFFSET = 9.49, 11.4, 0.73
 TT_CODE_SIZE, TT_CODE_OFFSET = 10.5, 3.0
@@ -343,6 +345,15 @@ def _draw_signatory(c, config: TicketConfig):
     _draw(c, config.signatory_title, HELV_BOLD, 9.49, cx, 779.98, align="center", char_space=0.45)
 
 
+def schedule_with_timing(schedule: list[dict], timing: dict | None) -> list[dict]:
+    """The timetable rows with the three timing columns replaced by `timing`
+    (a custom time slot), or unchanged when there is none."""
+    if not timing:
+        return schedule
+    override = {f: timing[f] for f in TIMING_FIELDS if timing.get(f)}
+    return [{**entry, **override} for entry in schedule]
+
+
 def generate_hall_ticket_page(
     c: canvas.Canvas,
     student_name: str,
@@ -351,6 +362,7 @@ def generate_hall_ticket_page(
     qr_token: str,
     config: TicketConfig,
     district: str | None = None,
+    timing: dict | None = None,
 ):
     ensure_fonts_registered()
     c.setStrokeColor(colors.black)
@@ -365,7 +377,7 @@ def generate_hall_ticket_page(
         center_name=exam_center_name,
         config=config,
     )
-    _draw_timetable(c, details_bottom + TT_GAP, config.schedule)
+    _draw_timetable(c, details_bottom + TT_GAP, schedule_with_timing(config.schedule, timing))
     _draw_signatory(c, config)
     draw_page_footer(c, config.footer_text)
 
@@ -378,12 +390,13 @@ def generate_hall_ticket_pdf(
     qr_token: str,
     config: TicketConfig,
     district: str | None = None,
+    timing: dict | None = None,
 ) -> None:
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
     c.setTitle(f"प्रवेश प्रमाणपत्र - {student_name}")
     c.setAuthor(config.footer_text)
-    generate_hall_ticket_page(c, student_name, mobile_number, exam_center_name, qr_token, config, district)
+    generate_hall_ticket_page(c, student_name, mobile_number, exam_center_name, qr_token, config, district, timing)
     c.showPage()
     draw_rules_page(c, config)
     c.showPage()

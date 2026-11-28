@@ -30,6 +30,29 @@ class ExamCenter(Base):
 
     students: Mapped[list["Student"]] = relationship(back_populates="exam_center")
     users: Mapped[list["User"]] = relationship(back_populates="exam_center")
+    time_slots: Mapped[list["ExamCenterTimeSlot"]] = relationship(
+        back_populates="exam_center", order_by="ExamCenterTimeSlot.id"
+    )
+
+
+class ExamCenterTimeSlot(Base):
+    """A custom exam timing for one center: the three timetable columns
+    उपकेंद्रावरील उपस्थिती (reporting), परीक्षा कक्षातील शेवटच्या प्रवेशाची वेळ
+    (last_entry) and परीक्षेचा प्रत्यक्ष कालावधी (duration), printed for every
+    exam date. A center can have several (e.g. different batches on the same
+    day); the slot is chosen per uploaded sheet. Students without a slot get
+    the default timing from ticket_template/config.json."""
+
+    __tablename__ = "exam_center_time_slots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_center_id: Mapped[int] = mapped_column(ForeignKey("exam_centers.id"), nullable=False, index=True)
+    reporting: Mapped[str] = mapped_column(String, nullable=False)
+    last_entry: Mapped[str] = mapped_column(String, nullable=False)
+    duration: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    exam_center: Mapped[ExamCenter] = relationship(back_populates="time_slots")
 
 
 class User(Base):
@@ -62,12 +85,16 @@ class Student(Base):
     # this is what links a roster entry to a student portal account.
     mobile_number: Mapped[str] = mapped_column(String, nullable=False, index=True)
     exam_center_id: Mapped[int] = mapped_column(ForeignKey("exam_centers.id"), nullable=False)
+    # Custom exam timing (a slot of the student's own center), set from the
+    # upload / Add-Edit Student form. NULL = default timing from config.json.
+    time_slot_id: Mapped[int | None] = mapped_column(ForeignKey("exam_center_time_slots.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
     exam_center: Mapped[ExamCenter] = relationship(back_populates="students")
+    time_slot: Mapped["ExamCenterTimeSlot | None"] = relationship()
     hall_ticket: Mapped["HallTicket | None"] = relationship(back_populates="student", uselist=False)
     scans: Mapped[list["Scan"]] = relationship(back_populates="student")
     email_logs: Mapped[list["EmailLog"]] = relationship(back_populates="student")
@@ -86,6 +113,13 @@ class HallTicket(Base):
     # so students always download the current version. The QR token never
     # changes, so already-printed tickets keep scanning correctly.
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # The custom timing printed on this card, copied from the student's time
+    # slot when the card is generated (or when the student is moved to another
+    # slot). A copy, not a link: editing a slot later only affects cards
+    # generated afterwards. NULL = default timing from config.json.
+    timing_reporting: Mapped[str | None] = mapped_column(String, nullable=True)
+    timing_last_entry: Mapped[str | None] = mapped_column(String, nullable=True)
+    timing_duration: Mapped[str | None] = mapped_column(String, nullable=True)
 
     student: Mapped[Student] = relationship(back_populates="hall_ticket")
 
