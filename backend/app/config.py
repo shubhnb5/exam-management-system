@@ -7,19 +7,20 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg2://examflow:examflow@localhost:5432/examflow"
     # Total DB connections = pool_size + max_overflow; keep below the
     # database's connection limit.
-    db_pool_size: int = 10
+    db_pool_size: int = 20
     db_max_overflow: int = 20
+
+    # Forwarded headers are trusted only from these proxy addresses/networks.
+    # Docker default bridge networks are 172.16.0.0/12; the host loopback is
+    # included for direct host-to-container/Nginx connections.
+    forwarded_allow_ips: str = "127.0.0.1,::1,172.16.0.0/12"
 
     jwt_secret_key: str = "changeme"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 720
 
-    # Key used to encrypt sensitive student fields (Aadhaar) at rest. Must be a
-    # Fernet key — generate with:
-    #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-    # If left empty a key is derived from JWT_SECRET_KEY so local setups work
-    # out of the box, but production should set its own: rotating the JWT
-    # secret would otherwise make already-stored Aadhaar numbers unreadable.
+    # Key used to encrypt sensitive student fields (Aadhaar) at rest. The key
+    # must be a Fernet key; see deployment documentation for key generation.
     field_encryption_key: str = ""
 
     # --- OTP (mobile verification at signup, forgot password) ---
@@ -31,9 +32,9 @@ class Settings(BaseSettings):
     otp_provider: str = "console"
     otp_dev_echo: bool = False
     otp_expiry_minutes: int = 5
-    otp_resend_seconds: int = 60
-    otp_max_sends_per_hour: int = 5  # per mobile number and purpose
-    otp_max_sends_per_ip_per_hour: int = 60
+    otp_resend_seconds: int = 0
+    otp_max_sends_per_hour: int = 0  # 0 disables the per-number application limit
+    otp_max_sends_per_ip_per_hour: int = 0  # 0 disables the per-IP application limit
     otp_max_attempts: int = 5  # wrong guesses allowed per OTP
     msg91_auth_key: str = ""
     msg91_template_id: str = ""

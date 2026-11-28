@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import api from "../api";
 import Icon from "./Icon";
 import Modal from "./Modal";
-import { truncate } from "../utils/text";
+import useMediaQuery, { PHONE_QUERY } from "../hooks/useMediaQuery";
+import { timingLabel, truncate } from "../utils/text";
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const MOBILE_RE = /^[6-9]\d{9}$/;
@@ -38,14 +39,34 @@ export default function StudentFormModal({ student, centers, onClose, onSaved })
     email: student?.email || "",
     mobile_number: student?.mobile_number || "",
     exam_center_id: student?.exam_center_id ? String(student.exam_center_id) : "",
+    // "" = default timing, else one of the exam center's time slots.
+    time_slot_id: student?.time_slot_id ? String(student.time_slot_id) : "",
     generate_admit_card: true,
   });
   const [errors, setErrors] = useState({});
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [timings, setTimings] = useState(null); // { default, slots } from /admin/time-slots
+
+  useEffect(() => {
+    api
+      .get("/admin/time-slots")
+      .then((res) => setTimings(res.data))
+      .catch(() => setTimings(null));
+  }, []);
+
+  const centerSlots = timings ? timings.slots.filter((s) => String(s.exam_center_id) === form.exam_center_id) : [];
+  // On phones the dropdown cuts a long timing off with "…": show it in full below.
+  const isPhone = useMediaQuery(PHONE_QUERY);
+  const selectedTiming = centerSlots.find((s) => String(s.id) === form.time_slot_id) || timings?.default;
 
   function set(field, value) {
-    setForm((f) => ({ ...f, [field]: value }));
+    setForm((f) => ({
+      ...f,
+      [field]: value,
+      // A timing belongs to one center: changing the center goes back to the default timing.
+      ...(field === "exam_center_id" && value !== f.exam_center_id ? { time_slot_id: "" } : {}),
+    }));
     if (errors[field]) setErrors((e) => ({ ...e, [field]: "" }));
   }
 
@@ -65,6 +86,7 @@ export default function StudentFormModal({ student, centers, onClose, onSaved })
       email: form.email.trim().toLowerCase(),
       mobile_number: form.mobile_number,
       exam_center_id: Number(form.exam_center_id),
+      time_slot_id: form.time_slot_id ? Number(form.time_slot_id) : null,
     };
     setBusy(true);
     try {
@@ -158,6 +180,29 @@ export default function StudentFormModal({ student, centers, onClose, onSaved })
             ))}
           </select>
           <FieldError message={errors.exam_center_id} />
+        </label>
+
+        <label className="field-label field-span">
+          Exam timing
+          <select
+            value={form.time_slot_id}
+            onChange={(e) => set("time_slot_id", e.target.value)}
+            aria-invalid={!!errors.time_slot_id}
+            disabled={!form.exam_center_id}
+          >
+            <option value="">
+              Default timing{timings?.default ? ` — ${timingLabel(timings.default)}` : ""}
+            </option>
+            {centerSlots.map((s) => (
+              <option key={s.id} value={s.id}>
+                {timingLabel(s)}
+              </option>
+            ))}
+          </select>
+          {isPhone && form.exam_center_id && selectedTiming && (
+            <span className="muted cell-sub">{timingLabel(selectedTiming)}</span>
+          )}
+          <FieldError message={errors.time_slot_id} />
         </label>
 
         {!isEdit && (

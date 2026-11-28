@@ -1,6 +1,8 @@
-"""Small in-memory brute-force guard for the student login and forgot-password
-endpoints. In-memory is enough for this app's single backend process; it
-resets on restart, which is acceptable for a throttle."""
+"""Small in-memory brute-force guard for student login and OTP throttling.
+
+This implementation is process-local. It is suitable for the current single
+backend process, but Redis is required for multiple workers or hosts.
+"""
 
 import threading
 import time
@@ -24,7 +26,6 @@ class FailureThrottle:
         return recent
 
     def check(self, key: str) -> None:
-        """Raises 429 if `key` has too many recent failures."""
         now = time.monotonic()
         with self._lock:
             recent = self._recent(key, now)
@@ -34,6 +35,30 @@ class FailureThrottle:
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                     detail=f"Too many attempts. Please try again in {wait_minutes} minute(s).",
                 )
+
+    def reserve(self, key: str) -> None:
+        """Atomically check and consume one request slot."""
+        now = time.monotonic()
+        with self._lock:
+            recent = self._recent(key, now)
+            if len(recent) >= self.max_failures:
+                raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                                    detail="Too many requests. Please try again later.")
+            self._failures.setdefault(key, []).append(now)
+
+    def release_one(self, key: str) -> None:
+        """Release a reserved slot after a delivery failure."""
+        with self._lock:
+            recent = self._failures.get(key)
+            if recent:
+                recent.pop()
+                if not recent:
+                    self._failures.pop(key, None)
+
+    def count(self, key: str) -> int:
+        now = time.monotonic()
+        with self._lock:
+            return len(self._recent(key, now))
 
     def record_failure(self, key: str) -> None:
         with self._lock:

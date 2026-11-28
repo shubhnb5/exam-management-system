@@ -1404,6 +1404,9 @@ form {
   font-weight: 700 !important;
   letter-spacing: 0.5em;
   padding-left: calc(15px + 0.5em) !important;
+  /* Without this the input's natural width (24px digits + 0.5em spacing,
+     ~450px) stretches the whole Contact section past a phone screen. */
+  width: 100%;
 }
 
 .otp-wrap {

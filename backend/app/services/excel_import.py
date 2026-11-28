@@ -9,9 +9,9 @@ from docx import Document
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import ExamCenter, Student, Upload
+from app.models import ExamCenter, ExamCenterTimeSlot, Student, Upload
 from app.schemas import TicketRefresh, UploadProblem
-from app.services.student_records import EMAIL_RE, mark_ticket_outdated, ticket_changes
+from app.services.student_records import EMAIL_RE, assign_time_slot, mark_ticket_outdated, ticket_changes
 from app.services.ticket_files import discard_ticket_pdf
 from app.validators import normalize_mobile
 
@@ -161,11 +161,21 @@ def _rows_from_docx(file_bytes: bytes) -> list[tuple]:
 
 
 def import_students_excel(
-    db: Session, file_bytes: bytes, filename: str, uploaded_by_user_id: int, exam_center_id: int
+    db: Session,
+    file_bytes: bytes,
+    filename: str,
+    uploaded_by_user_id: int,
+    exam_center_id: int,
+    time_slot_id: int | None = None,
 ) -> tuple[Upload, list[UploadProblem], list[TicketRefresh]]:
+    """`time_slot_id`: the exam timing selected for this sheet (a slot of the
+    center); every student in it gets that timing. None = default timing."""
     center = db.get(ExamCenter, exam_center_id)
     if center is None:
         raise ValueError("Unknown exam center.")
+    time_slot = db.get(ExamCenterTimeSlot, time_slot_id) if time_slot_id else None
+    if time_slot_id and (time_slot is None or time_slot.exam_center_id != center.id):
+        raise ValueError("The selected exam timing does not belong to the selected exam center.")
 
     lower_name = filename.lower()
     if lower_name.endswith(".csv"):
@@ -185,7 +195,9 @@ def import_students_excel(
     # saving row-by-row took ~80s for 5000 rows even against a local DB —
     # longer than a reverse proxy's request timeout.)
     existing_students = (
-        db.query(Student).options(selectinload(Student.hall_ticket), selectinload(Student.exam_center)).all()
+        db.query(Student)
+        .options(selectinload(Student.hall_ticket), selectinload(Student.exam_center), selectinload(Student.time_slot))
+        .all()
     )
     by_email: dict[str, Student] = {s.email: s for s in existing_students}
     # mobile -> current holder. `row` is set for students added/updated by
@@ -235,7 +247,7 @@ def import_students_excel(
         student = by_email.get(email)
         if student is not None:
             if student.id is not None:
-                changes = ticket_changes(student, name, mobile, center)
+                changes = ticket_changes(student, name, mobile, center, time_slot)
                 if changes and student.hall_ticket is not None:
                     # Keep the QR token (already-printed cards still scan);
                     # the PDF is rebuilt from the new details on next view.
@@ -253,10 +265,13 @@ def import_students_excel(
             student.mobile_number = mobile
             student.exam_center_id = center.id
             student.exam_center = center
+            assign_time_slot(student, time_slot)
             updated_count += 1
         else:
             student = Student(full_name=name, email=email, mobile_number=mobile, exam_center_id=center.id)
             student.exam_center = center
+            student.time_slot_id = time_slot.id if time_slot else None
+            student.time_slot = time_slot
             by_email[email] = student
             new_students.append(student)
             new_count += 1
